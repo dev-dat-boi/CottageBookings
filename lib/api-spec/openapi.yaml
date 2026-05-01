@@ -3,20 +3,25 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Cottage Pricing API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: settings
+    description: Control panel settings
+  - name: calendar
+    description: Calendar with daily prices
+  - name: bookings
+    description: Booking price calculator
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +29,71 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Get all control panel settings
+      responses:
+        "200":
+          description: Settings object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+    put:
+      operationId: updateSettings
+      tags: [settings]
+      summary: Update control panel settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Settings"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+
+  /calendar:
+    get:
+      operationId: getCalendar
+      tags: [calendar]
+      summary: Get full calendar with computed daily prices
+      responses:
+        "200":
+          description: List of calendar entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CalendarEntry"
+
+  /bookings/calculate:
+    post:
+      operationId: calculateBooking
+      tags: [bookings]
+      summary: Calculate total price and average daily rate for a date range
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingRequest"
+      responses:
+        "200":
+          description: Booking calculation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingResult"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +101,126 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    SeasonMultipliers:
+      type: object
+      properties:
+        Winter:
+          type: number
+        Low:
+          type: number
+        Spring:
+          type: number
+        Summer:
+          type: number
+        Fall:
+          type: number
+      required: [Winter, Low, Spring, Summer, Fall]
+
+    DayMultipliers:
+      type: object
+      properties:
+        Monday:
+          type: number
+        Tuesday:
+          type: number
+        Wednesday:
+          type: number
+        Thursday:
+          type: number
+        Friday:
+          type: number
+        Saturday:
+          type: number
+        Sunday:
+          type: number
+      required: [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
+
+    HolidayBoosts:
+      type: object
+      properties:
+        "New Year":
+          type: number
+        "St-Jean":
+          type: number
+        "Canada Day":
+          type: number
+        "Construction Holiday":
+          type: number
+        "Labor Day":
+          type: number
+        "Thanksgiving":
+          type: number
+        "Christmas":
+          type: number
+      required: ["New Year", "St-Jean", "Canada Day", "Construction Holiday", "Labor Day", "Thanksgiving", "Christmas"]
+
+    Settings:
+      type: object
+      properties:
+        basePrice:
+          type: number
+        seasonMultipliers:
+          $ref: "#/components/schemas/SeasonMultipliers"
+        dayMultipliers:
+          $ref: "#/components/schemas/DayMultipliers"
+        holidayBoosts:
+          $ref: "#/components/schemas/HolidayBoosts"
+      required: [basePrice, seasonMultipliers, dayMultipliers, holidayBoosts]
+
+    CalendarEntry:
+      type: object
+      properties:
+        date:
+          type: string
+          description: ISO date string (YYYY-MM-DD)
+        dayOfWeek:
+          type: string
+        season:
+          type: string
+        seasonMult:
+          type: number
+        dayMult:
+          type: number
+        holiday:
+          type: string
+        holidayBoost:
+          type: number
+        demandAdj:
+          type: number
+        finalPct:
+          type: number
+        price:
+          type: number
+      required: [date, dayOfWeek, season, seasonMult, dayMult, holiday, holidayBoost, demandAdj, finalPct, price]
+
+    BookingRequest:
+      type: object
+      properties:
+        startDate:
+          type: string
+          description: ISO date string (YYYY-MM-DD)
+        endDate:
+          type: string
+          description: ISO date string (YYYY-MM-DD)
+      required: [startDate, endDate]
+
+    BookingResult:
+      type: object
+      properties:
+        startDate:
+          type: string
+        endDate:
+          type: string
+        nights:
+          type: integer
+        totalPrice:
+          type: number
+        avgDailyRate:
+          type: number
+        breakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/CalendarEntry"
+      required: [startDate, endDate, nights, totalPrice, avgDailyRate, breakdown]

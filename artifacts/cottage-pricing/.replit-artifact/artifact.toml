@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Cottage Pricing"
+version = "1.0.0"
+id = "artifacts/cottage-pricing"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23405
+
+[services.development]
+run = "pnpm --filter @workspace/cottage-pricing run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/cottage-pricing", "run", "build" ]
+publicDir = "artifacts/cottage-pricing/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23405"
+BASE_PATH = "/"
