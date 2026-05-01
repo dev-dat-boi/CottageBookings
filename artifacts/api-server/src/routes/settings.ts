@@ -1,22 +1,17 @@
 import { Router } from "express";
 import { db, settingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import {
-  UpdateSettingsBody,
-} from "@workspace/api-zod";
+import { UpdateSettingsBody } from "@workspace/api-zod";
+import { DEFAULT_SEASONS, DEFAULT_HOLIDAYS, parseSeasons, parseHolidays } from "../lib/pricing";
 
 const router = Router();
 
 function rowToApi(row: typeof settingsTable.$inferSelect) {
+  const seasons = parseSeasons(row.seasonsJson);
+  const holidays = parseHolidays(row.holidaysJson);
   return {
     basePrice: row.basePrice,
-    seasonMultipliers: {
-      Winter: row.seasonWinter,
-      Low: row.seasonLow,
-      Spring: row.seasonSpring,
-      Summer: row.seasonSummer,
-      Fall: row.seasonFall,
-    },
+    seasons,
     dayMultipliers: {
       Monday: row.dayMonday,
       Tuesday: row.dayTuesday,
@@ -26,22 +21,33 @@ function rowToApi(row: typeof settingsTable.$inferSelect) {
       Saturday: row.daySaturday,
       Sunday: row.daySunday,
     },
-    holidayBoosts: {
-      "New Year": row.holidayNewYear,
-      "St-Jean": row.holidayStJean,
-      "Canada Day": row.holidayCanadaDay,
-      "Construction Holiday": row.holidayConstruction,
-      "Labor Day": row.holidayLaborDay,
-      "Thanksgiving": row.holidayThanksgiving,
-      "Christmas": row.holidayChristmas,
-    },
+    holidays,
   };
 }
 
 async function ensureDefaultSettings() {
   const existing = await db.select().from(settingsTable).where(eq(settingsTable.id, 1));
   if (existing.length === 0) {
-    await db.insert(settingsTable).values({ id: 1 });
+    await db.insert(settingsTable).values({
+      id: 1,
+      seasonsJson: JSON.stringify(DEFAULT_SEASONS),
+      holidaysJson: JSON.stringify(DEFAULT_HOLIDAYS),
+    });
+  } else {
+    // Migrate: if seasons/holidays JSON is empty array, seed defaults
+    const row = existing[0];
+    const seasons = JSON.parse(row.seasonsJson || '[]');
+    const holidays = JSON.parse(row.holidaysJson || '[]');
+    const updates: Partial<typeof settingsTable.$inferInsert> = {};
+    if (!Array.isArray(seasons) || seasons.length === 0) {
+      updates.seasonsJson = JSON.stringify(DEFAULT_SEASONS);
+    }
+    if (!Array.isArray(holidays) || holidays.length === 0) {
+      updates.holidaysJson = JSON.stringify(DEFAULT_HOLIDAYS);
+    }
+    if (Object.keys(updates).length > 0) {
+      await db.update(settingsTable).set(updates).where(eq(settingsTable.id, 1));
+    }
   }
   return db.select().from(settingsTable).where(eq(settingsTable.id, 1));
 }
@@ -68,11 +74,6 @@ router.put("/settings", async (req, res) => {
     await ensureDefaultSettings();
     await db.update(settingsTable).set({
       basePrice: body.basePrice,
-      seasonWinter: body.seasonMultipliers.Winter,
-      seasonLow: body.seasonMultipliers.Low,
-      seasonSpring: body.seasonMultipliers.Spring,
-      seasonSummer: body.seasonMultipliers.Summer,
-      seasonFall: body.seasonMultipliers.Fall,
       dayMonday: body.dayMultipliers.Monday,
       dayTuesday: body.dayMultipliers.Tuesday,
       dayWednesday: body.dayMultipliers.Wednesday,
@@ -80,13 +81,8 @@ router.put("/settings", async (req, res) => {
       dayFriday: body.dayMultipliers.Friday,
       daySaturday: body.dayMultipliers.Saturday,
       daySunday: body.dayMultipliers.Sunday,
-      holidayNewYear: body.holidayBoosts["New Year"],
-      holidayStJean: body.holidayBoosts["St-Jean"],
-      holidayCanadaDay: body.holidayBoosts["Canada Day"],
-      holidayConstruction: body.holidayBoosts["Construction Holiday"],
-      holidayLaborDay: body.holidayBoosts["Labor Day"],
-      holidayThanksgiving: body.holidayBoosts.Thanksgiving,
-      holidayChristmas: body.holidayBoosts.Christmas,
+      seasonsJson: JSON.stringify(body.seasons),
+      holidaysJson: JSON.stringify(body.holidays),
     }).where(eq(settingsTable.id, 1));
 
     const rows = await db.select().from(settingsTable).where(eq(settingsTable.id, 1));
@@ -97,4 +93,5 @@ router.put("/settings", async (req, res) => {
   }
 });
 
+export { ensureDefaultSettings, rowToApi };
 export default router;

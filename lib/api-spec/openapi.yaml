@@ -75,6 +75,49 @@ paths:
                 items:
                   $ref: "#/components/schemas/CalendarEntry"
 
+  /calendar/{date}/override:
+    put:
+      operationId: setDayOverride
+      tags: [calendar]
+      summary: Set per-day overrides for season, holiday, or day-of-week
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ISO date (YYYY-MM-DD)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DayOverrideRequest"
+      responses:
+        "200":
+          description: Updated calendar entry for that date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarEntry"
+    delete:
+      operationId: removeDayOverride
+      tags: [calendar]
+      summary: Remove per-day override
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Calendar entry with override removed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarEntry"
+
   /bookings/calculate:
     post:
       operationId: calculateBooking
@@ -103,20 +146,23 @@ components:
           type: string
       required: [status]
 
-    SeasonMultipliers:
+    Season:
       type: object
       properties:
-        Winter:
+        name:
+          type: string
+        multiplier:
           type: number
-        Low:
+      required: [name, multiplier]
+
+    Holiday:
+      type: object
+      properties:
+        name:
+          type: string
+        boost:
           type: number
-        Spring:
-          type: number
-        Summer:
-          type: number
-        Fall:
-          type: number
-      required: [Winter, Low, Spring, Summer, Fall]
+      required: [name, boost]
 
     DayMultipliers:
       type: object
@@ -137,37 +183,35 @@ components:
           type: number
       required: [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
 
-    HolidayBoosts:
-      type: object
-      properties:
-        "New Year":
-          type: number
-        "St-Jean":
-          type: number
-        "Canada Day":
-          type: number
-        "Construction Holiday":
-          type: number
-        "Labor Day":
-          type: number
-        "Thanksgiving":
-          type: number
-        "Christmas":
-          type: number
-      required: ["New Year", "St-Jean", "Canada Day", "Construction Holiday", "Labor Day", "Thanksgiving", "Christmas"]
-
     Settings:
       type: object
       properties:
         basePrice:
           type: number
-        seasonMultipliers:
-          $ref: "#/components/schemas/SeasonMultipliers"
+        seasons:
+          type: array
+          items:
+            $ref: "#/components/schemas/Season"
         dayMultipliers:
           $ref: "#/components/schemas/DayMultipliers"
-        holidayBoosts:
-          $ref: "#/components/schemas/HolidayBoosts"
-      required: [basePrice, seasonMultipliers, dayMultipliers, holidayBoosts]
+        holidays:
+          type: array
+          items:
+            $ref: "#/components/schemas/Holiday"
+      required: [basePrice, seasons, dayMultipliers, holidays]
+
+    DayOverrideRequest:
+      type: object
+      properties:
+        seasonOverride:
+          type: string
+          nullable: true
+        holidayOverride:
+          type: string
+          nullable: true
+        dayOverride:
+          type: string
+          nullable: true
 
     CalendarEntry:
       type: object
@@ -193,7 +237,9 @@ components:
           type: number
         price:
           type: number
-      required: [date, dayOfWeek, season, seasonMult, dayMult, holiday, holidayBoost, demandAdj, finalPct, price]
+        isOverridden:
+          type: boolean
+      required: [date, dayOfWeek, season, seasonMult, dayMult, holiday, holidayBoost, demandAdj, finalPct, price, isOverridden]
 
     BookingRequest:
       type: object

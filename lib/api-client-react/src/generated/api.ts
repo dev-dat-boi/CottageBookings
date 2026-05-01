@@ -20,6 +20,7 @@ import type {
   BookingRequest,
   BookingResult,
   CalendarEntry,
+  DayOverrideRequest,
   HealthStatus,
   Settings,
 } from "./api.schemas";
@@ -341,6 +342,177 @@ export function useGetCalendar<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Set per-day overrides for season, holiday, or day-of-week
+ */
+export const getSetDayOverrideUrl = (date: string) => {
+  return `/api/calendar/${date}/override`;
+};
+
+export const setDayOverride = async (
+  date: string,
+  dayOverrideRequest: DayOverrideRequest,
+  options?: RequestInit,
+): Promise<CalendarEntry> => {
+  return customFetch<CalendarEntry>(getSetDayOverrideUrl(date), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(dayOverrideRequest),
+  });
+};
+
+export const getSetDayOverrideMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setDayOverride>>,
+    TError,
+    { date: string; data: BodyType<DayOverrideRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setDayOverride>>,
+  TError,
+  { date: string; data: BodyType<DayOverrideRequest> },
+  TContext
+> => {
+  const mutationKey = ["setDayOverride"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setDayOverride>>,
+    { date: string; data: BodyType<DayOverrideRequest> }
+  > = (props) => {
+    const { date, data } = props ?? {};
+
+    return setDayOverride(date, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetDayOverrideMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setDayOverride>>
+>;
+export type SetDayOverrideMutationBody = BodyType<DayOverrideRequest>;
+export type SetDayOverrideMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Set per-day overrides for season, holiday, or day-of-week
+ */
+export const useSetDayOverride = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setDayOverride>>,
+    TError,
+    { date: string; data: BodyType<DayOverrideRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setDayOverride>>,
+  TError,
+  { date: string; data: BodyType<DayOverrideRequest> },
+  TContext
+> => {
+  return useMutation(getSetDayOverrideMutationOptions(options));
+};
+
+/**
+ * @summary Remove per-day override
+ */
+export const getRemoveDayOverrideUrl = (date: string) => {
+  return `/api/calendar/${date}/override`;
+};
+
+export const removeDayOverride = async (
+  date: string,
+  options?: RequestInit,
+): Promise<CalendarEntry> => {
+  return customFetch<CalendarEntry>(getRemoveDayOverrideUrl(date), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getRemoveDayOverrideMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeDayOverride>>,
+    TError,
+    { date: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof removeDayOverride>>,
+  TError,
+  { date: string },
+  TContext
+> => {
+  const mutationKey = ["removeDayOverride"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof removeDayOverride>>,
+    { date: string }
+  > = (props) => {
+    const { date } = props ?? {};
+
+    return removeDayOverride(date, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RemoveDayOverrideMutationResult = NonNullable<
+  Awaited<ReturnType<typeof removeDayOverride>>
+>;
+
+export type RemoveDayOverrideMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove per-day override
+ */
+export const useRemoveDayOverride = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof removeDayOverride>>,
+    TError,
+    { date: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof removeDayOverride>>,
+  TError,
+  { date: string },
+  TContext
+> => {
+  return useMutation(getRemoveDayOverrideMutationOptions(options));
+};
 
 /**
  * @summary Calculate total price and average daily rate for a date range

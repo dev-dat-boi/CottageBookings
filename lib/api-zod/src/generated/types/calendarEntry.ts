@@ -18,4 +18,5 @@ export interface CalendarEntry {
   demandAdj: number;
   finalPct: number;
   price: number;
+  isOverridden: boolean;
 }

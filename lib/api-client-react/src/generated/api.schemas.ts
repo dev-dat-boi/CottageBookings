@@ -9,12 +9,14 @@ export interface HealthStatus {
   status: string;
 }
 
-export interface SeasonMultipliers {
-  Winter: number;
-  Low: number;
-  Spring: number;
-  Summer: number;
-  Fall: number;
+export interface Season {
+  name: string;
+  multiplier: number;
+}
+
+export interface Holiday {
+  name: string;
+  boost: number;
 }
 
 export interface DayMultipliers {
@@ -27,21 +29,17 @@ export interface DayMultipliers {
   Sunday: number;
 }
 
-export interface HolidayBoosts {
-  "New Year": number;
-  "St-Jean": number;
-  "Canada Day": number;
-  "Construction Holiday": number;
-  "Labor Day": number;
-  Thanksgiving: number;
-  Christmas: number;
-}
-
 export interface Settings {
   basePrice: number;
-  seasonMultipliers: SeasonMultipliers;
+  seasons: Season[];
   dayMultipliers: DayMultipliers;
-  holidayBoosts: HolidayBoosts;
+  holidays: Holiday[];
+}
+
+export interface DayOverrideRequest {
+  seasonOverride?: string | null;
+  holidayOverride?: string | null;
+  dayOverride?: string | null;
 }
 
 export interface CalendarEntry {
@@ -56,6 +54,7 @@ export interface CalendarEntry {
   demandAdj: number;
   finalPct: number;
   price: number;
+  isOverridden: boolean;
 }
 
 export interface BookingRequest {

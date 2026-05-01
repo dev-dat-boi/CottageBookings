@@ -19,13 +19,12 @@ export const HealthCheckResponse = zod.object({
  */
 export const GetSettingsResponse = zod.object({
   basePrice: zod.number(),
-  seasonMultipliers: zod.object({
-    Winter: zod.number(),
-    Low: zod.number(),
-    Spring: zod.number(),
-    Summer: zod.number(),
-    Fall: zod.number(),
-  }),
+  seasons: zod.array(
+    zod.object({
+      name: zod.string(),
+      multiplier: zod.number(),
+    }),
+  ),
   dayMultipliers: zod.object({
     Monday: zod.number(),
     Tuesday: zod.number(),
@@ -35,15 +34,12 @@ export const GetSettingsResponse = zod.object({
     Saturday: zod.number(),
     Sunday: zod.number(),
   }),
-  holidayBoosts: zod.object({
-    "New Year": zod.number(),
-    "St-Jean": zod.number(),
-    "Canada Day": zod.number(),
-    "Construction Holiday": zod.number(),
-    "Labor Day": zod.number(),
-    Thanksgiving: zod.number(),
-    Christmas: zod.number(),
-  }),
+  holidays: zod.array(
+    zod.object({
+      name: zod.string(),
+      boost: zod.number(),
+    }),
+  ),
 });
 
 /**
@@ -51,13 +47,12 @@ export const GetSettingsResponse = zod.object({
  */
 export const UpdateSettingsBody = zod.object({
   basePrice: zod.number(),
-  seasonMultipliers: zod.object({
-    Winter: zod.number(),
-    Low: zod.number(),
-    Spring: zod.number(),
-    Summer: zod.number(),
-    Fall: zod.number(),
-  }),
+  seasons: zod.array(
+    zod.object({
+      name: zod.string(),
+      multiplier: zod.number(),
+    }),
+  ),
   dayMultipliers: zod.object({
     Monday: zod.number(),
     Tuesday: zod.number(),
@@ -67,26 +62,22 @@ export const UpdateSettingsBody = zod.object({
     Saturday: zod.number(),
     Sunday: zod.number(),
   }),
-  holidayBoosts: zod.object({
-    "New Year": zod.number(),
-    "St-Jean": zod.number(),
-    "Canada Day": zod.number(),
-    "Construction Holiday": zod.number(),
-    "Labor Day": zod.number(),
-    Thanksgiving: zod.number(),
-    Christmas: zod.number(),
-  }),
+  holidays: zod.array(
+    zod.object({
+      name: zod.string(),
+      boost: zod.number(),
+    }),
+  ),
 });
 
 export const UpdateSettingsResponse = zod.object({
   basePrice: zod.number(),
-  seasonMultipliers: zod.object({
-    Winter: zod.number(),
-    Low: zod.number(),
-    Spring: zod.number(),
-    Summer: zod.number(),
-    Fall: zod.number(),
-  }),
+  seasons: zod.array(
+    zod.object({
+      name: zod.string(),
+      multiplier: zod.number(),
+    }),
+  ),
   dayMultipliers: zod.object({
     Monday: zod.number(),
     Tuesday: zod.number(),
@@ -96,15 +87,12 @@ export const UpdateSettingsResponse = zod.object({
     Saturday: zod.number(),
     Sunday: zod.number(),
   }),
-  holidayBoosts: zod.object({
-    "New Year": zod.number(),
-    "St-Jean": zod.number(),
-    "Canada Day": zod.number(),
-    "Construction Holiday": zod.number(),
-    "Labor Day": zod.number(),
-    Thanksgiving: zod.number(),
-    Christmas: zod.number(),
-  }),
+  holidays: zod.array(
+    zod.object({
+      name: zod.string(),
+      boost: zod.number(),
+    }),
+  ),
 });
 
 /**
@@ -121,8 +109,57 @@ export const GetCalendarResponseItem = zod.object({
   demandAdj: zod.number(),
   finalPct: zod.number(),
   price: zod.number(),
+  isOverridden: zod.boolean(),
 });
 export const GetCalendarResponse = zod.array(GetCalendarResponseItem);
+
+/**
+ * @summary Set per-day overrides for season, holiday, or day-of-week
+ */
+export const SetDayOverrideParams = zod.object({
+  date: zod.coerce.string().describe("ISO date (YYYY-MM-DD)"),
+});
+
+export const SetDayOverrideBody = zod.object({
+  seasonOverride: zod.string().nullish(),
+  holidayOverride: zod.string().nullish(),
+  dayOverride: zod.string().nullish(),
+});
+
+export const SetDayOverrideResponse = zod.object({
+  date: zod.string().describe("ISO date string (YYYY-MM-DD)"),
+  dayOfWeek: zod.string(),
+  season: zod.string(),
+  seasonMult: zod.number(),
+  dayMult: zod.number(),
+  holiday: zod.string(),
+  holidayBoost: zod.number(),
+  demandAdj: zod.number(),
+  finalPct: zod.number(),
+  price: zod.number(),
+  isOverridden: zod.boolean(),
+});
+
+/**
+ * @summary Remove per-day override
+ */
+export const RemoveDayOverrideParams = zod.object({
+  date: zod.coerce.string(),
+});
+
+export const RemoveDayOverrideResponse = zod.object({
+  date: zod.string().describe("ISO date string (YYYY-MM-DD)"),
+  dayOfWeek: zod.string(),
+  season: zod.string(),
+  seasonMult: zod.number(),
+  dayMult: zod.number(),
+  holiday: zod.string(),
+  holidayBoost: zod.number(),
+  demandAdj: zod.number(),
+  finalPct: zod.number(),
+  price: zod.number(),
+  isOverridden: zod.boolean(),
+});
 
 /**
  * @summary Calculate total price and average daily rate for a date range
@@ -150,6 +187,7 @@ export const CalculateBookingResponse = zod.object({
       demandAdj: zod.number(),
       finalPct: zod.number(),
       price: zod.number(),
+      isOverridden: zod.boolean(),
     }),
   ),
 });

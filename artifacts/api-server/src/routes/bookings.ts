@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { db, settingsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
-import { computeEntry } from "../lib/pricing";
+import { db, settingsTable, dayOverridesTable } from "@workspace/db";
+import { computeEntry, parseSeasons, parseHolidays } from "../lib/pricing";
+import type { Override } from "../lib/pricing";
 import { CalculateBookingBody } from "@workspace/api-zod";
+import { ensureDefaultSettings } from "./settings";
 
 const router = Router();
 
@@ -14,8 +15,8 @@ router.post("/bookings/calculate", async (req, res) => {
   }
 
   const { startDate, endDate } = parsed.data;
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+  const start = new Date(startDate + "T12:00:00Z");
+  const end = new Date(endDate + "T12:00:00Z");
 
   if (isNaN(start.getTime()) || isNaN(end.getTime())) {
     res.status(400).json({ error: "Invalid dates" });
@@ -28,15 +29,25 @@ router.post("/bookings/calculate", async (req, res) => {
   }
 
   try {
-    const rows = await db.select().from(settingsTable).where(eq(settingsTable.id, 1));
-    if (rows.length === 0) {
-      await db.insert(settingsTable).values({ id: 1 });
+    const rows = await ensureDefaultSettings();
+    const s = rows[0];
+    const seasons = parseSeasons(s.seasonsJson);
+    const holidays = parseHolidays(s.holidaysJson);
+
+    const overrideRows = await db.select().from(dayOverridesTable);
+    const overrides = new Map<string, Override>();
+    for (const row of overrideRows) {
+      overrides.set(row.date, {
+        seasonOverride: row.seasonOverride ?? null,
+        holidayOverride: row.holidayOverride ?? null,
+        dayOverride: row.dayOverride ?? null,
+      });
     }
-    const s = rows.length > 0 ? rows[0] : (await db.select().from(settingsTable).where(eq(settingsTable.id, 1)))[0];
 
     const breakdown = [];
-    for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
-      breakdown.push(computeEntry(new Date(d), s));
+    for (let d = new Date(start); d < end; d.setUTCDate(d.getUTCDate() + 1)) {
+      const dateStr = d.toISOString().slice(0, 10);
+      breakdown.push(computeEntry(new Date(d), s, seasons, holidays, overrides.get(dateStr) ?? null));
     }
 
     const nights = breakdown.length;

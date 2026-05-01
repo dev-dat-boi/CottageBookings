@@ -6,10 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface SeasonMultipliers {
-  Winter: number;
-  Low: number;
-  Spring: number;
-  Summer: number;
-  Fall: number;
+export interface Season {
+  name: string;
+  multiplier: number;
 }

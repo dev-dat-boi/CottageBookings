@@ -1,32 +1,34 @@
-import React, { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect } from "react";
+import { useForm, useFieldArray } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
-import { 
-  useGetSettings, 
-  useUpdateSettings, 
+import {
+  useGetSettings,
+  useUpdateSettings,
   getGetSettingsQueryKey,
-  getGetCalendarQueryKey 
+  getGetCalendarQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, Plus, Trash2 } from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { Settings } from "@workspace/api-client-react/src/generated/api.schemas";
+
+const seasonSchema = z.object({
+  name: z.string().min(1, "Name required"),
+  multiplier: z.coerce.number().min(0),
+});
+
+const holidaySchema = z.object({
+  name: z.string().min(1, "Name required"),
+  boost: z.coerce.number().min(0),
+});
 
 const settingsSchema = z.object({
   basePrice: z.coerce.number().min(0),
-  seasonMultipliers: z.object({
-    Winter: z.coerce.number(),
-    Low: z.coerce.number(),
-    Spring: z.coerce.number(),
-    Summer: z.coerce.number(),
-    Fall: z.coerce.number(),
-  }),
+  seasons: z.array(seasonSchema),
   dayMultipliers: z.object({
     Monday: z.coerce.number(),
     Tuesday: z.coerce.number(),
@@ -36,52 +38,65 @@ const settingsSchema = z.object({
     Saturday: z.coerce.number(),
     Sunday: z.coerce.number(),
   }),
-  holidayBoosts: z.object({
-    "New Year": z.coerce.number(),
-    "St-Jean": z.coerce.number(),
-    "Canada Day": z.coerce.number(),
-    "Construction Holiday": z.coerce.number(),
-    "Labor Day": z.coerce.number(),
-    Thanksgiving: z.coerce.number(),
-    Christmas: z.coerce.number(),
-  }),
+  holidays: z.array(holidaySchema),
 });
+
+type FormValues = z.infer<typeof settingsSchema>;
+
+const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
 
 export function ControlPanelTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: settings, isLoading } = useGetSettings({ 
-    query: { queryKey: getGetSettingsQueryKey() } 
+  const { data: settings, isLoading } = useGetSettings({
+    query: { queryKey: getGetSettingsQueryKey() },
   });
-  
+
   const updateMutation = useUpdateSettings();
 
-  const form = useForm<Settings>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
-      basePrice: 0,
-      seasonMultipliers: { Winter: 1, Low: 1, Spring: 1, Summer: 1, Fall: 1 },
-      dayMultipliers: { Monday: 1, Tuesday: 1, Wednesday: 1, Thursday: 1, Friday: 1, Saturday: 1, Sunday: 1 },
-      holidayBoosts: { "New Year": 1, "St-Jean": 1, "Canada Day": 1, "Construction Holiday": 1, "Labor Day": 1, Thanksgiving: 1, Christmas: 1 },
-    }
+      basePrice: 300,
+      seasons: [],
+      dayMultipliers: { Monday: 0.95, Tuesday: 0.95, Wednesday: 0.95, Thursday: 0.95, Friday: 1.1, Saturday: 1.25, Sunday: 1.05 },
+      holidays: [],
+    },
   });
+
+  const {
+    fields: seasonFields,
+    append: appendSeason,
+    remove: removeSeason,
+  } = useFieldArray({ control: form.control, name: "seasons" });
+
+  const {
+    fields: holidayFields,
+    append: appendHoliday,
+    remove: removeHoliday,
+  } = useFieldArray({ control: form.control, name: "holidays" });
 
   useEffect(() => {
     if (settings) {
-      form.reset(settings);
+      form.reset({
+        basePrice: settings.basePrice,
+        seasons: settings.seasons ?? [],
+        dayMultipliers: settings.dayMultipliers,
+        holidays: settings.holidays ?? [],
+      });
     }
   }, [settings, form]);
 
-  const onSubmit = (data: Settings) => {
+  const onSubmit = (data: FormValues) => {
     updateMutation.mutate({ data }, {
       onSuccess: () => {
-        toast({ title: "Settings saved", description: "Pricing rules have been updated successfully." });
+        toast({ title: "Settings saved", description: "Pricing rules updated successfully." });
         queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetCalendarQueryKey() });
       },
       onError: () => {
         toast({ title: "Error", description: "Failed to save settings.", variant: "destructive" });
-      }
+      },
     });
   };
 
@@ -104,6 +119,7 @@ export function ControlPanelTab() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Base Price */}
           <Card className="border-border/40 shadow-sm md:col-span-2">
             <CardHeader className="bg-muted/30 border-b border-border/40">
               <CardTitle>Base Configuration</CardTitle>
@@ -125,38 +141,78 @@ export function ControlPanelTab() {
             </CardContent>
           </Card>
 
+          {/* Seasons */}
           <Card className="border-border/40 shadow-sm">
-            <CardHeader className="bg-muted/30 border-b border-border/40">
-              <CardTitle>Season Multipliers</CardTitle>
-              <CardDescription>e.g. 1.2 = 20% increase</CardDescription>
+            <CardHeader className="bg-muted/30 border-b border-border/40 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Seasons</CardTitle>
+                <CardDescription>Name and rate multiplier per season</CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => appendSeason({ name: "", multiplier: 1 })}
+              >
+                <Plus className="w-4 h-4 mr-1" /> Add
+              </Button>
             </CardHeader>
-            <CardContent className="p-6 grid grid-cols-2 gap-4">
-              {(["Winter", "Low", "Spring", "Summer", "Fall"] as const).map(season => (
-                <FormField
-                  key={season}
-                  control={form.control}
-                  name={`seasonMultipliers.${season}`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{season}</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.01" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <CardContent className="p-6 space-y-3">
+              {seasonFields.length === 0 && (
+                <p className="text-sm text-muted-foreground italic">No seasons defined. Add one above.</p>
+              )}
+              {seasonFields.map((field, index) => (
+                <div key={field.id} className="flex gap-2 items-start">
+                  <FormField
+                    control={form.control}
+                    name={`seasons.${index}.name`}
+                    render={({ field }) => (
+                      <FormItem className="flex-1">
+                        {index === 0 && <FormLabel className="text-xs text-muted-foreground">Name</FormLabel>}
+                        <FormControl>
+                          <Input placeholder="e.g. Winter" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`seasons.${index}.multiplier`}
+                    render={({ field }) => (
+                      <FormItem className="w-28">
+                        {index === 0 && <FormLabel className="text-xs text-muted-foreground">Multiplier</FormLabel>}
+                        <FormControl>
+                          <Input type="number" step="0.01" placeholder="1.00" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className={index === 0 ? "mt-6" : ""}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeSeason(index)}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
               ))}
             </CardContent>
           </Card>
 
+          {/* Day Multipliers */}
           <Card className="border-border/40 shadow-sm">
             <CardHeader className="bg-muted/30 border-b border-border/40">
               <CardTitle>Day of Week Multipliers</CardTitle>
               <CardDescription>Weekend premium or weekday discount</CardDescription>
             </CardHeader>
             <CardContent className="p-6 grid grid-cols-2 gap-4">
-              {(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const).map(day => (
+              {DAY_NAMES.map(day => (
                 <FormField
                   key={day}
                   control={form.control}
@@ -175,28 +231,69 @@ export function ControlPanelTab() {
             </CardContent>
           </Card>
 
+          {/* Holidays */}
           <Card className="border-border/40 shadow-sm md:col-span-2">
-            <CardHeader className="bg-muted/30 border-b border-border/40">
-              <CardTitle>Holiday Boosts</CardTitle>
-              <CardDescription>Extra multiplier applied on specific holidays</CardDescription>
+            <CardHeader className="bg-muted/30 border-b border-border/40 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Holidays</CardTitle>
+                <CardDescription>Extra boost added on top of the base rate on holiday dates</CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => appendHoliday({ name: "", boost: 0 })}
+              >
+                <Plus className="w-4 h-4 mr-1" /> Add
+              </Button>
             </CardHeader>
-            <CardContent className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-              {(["New Year", "St-Jean", "Canada Day", "Construction Holiday", "Labor Day", "Thanksgiving", "Christmas"] as const).map(holiday => (
-                <FormField
-                  key={holiday}
-                  control={form.control}
-                  name={`holidayBoosts.${holiday}`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{holiday}</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.01" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ))}
+            <CardContent className="p-6">
+              {holidayFields.length === 0 && (
+                <p className="text-sm text-muted-foreground italic">No holidays defined. Add one above.</p>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {holidayFields.map((field, index) => (
+                  <div key={field.id} className="flex gap-2 items-start">
+                    <FormField
+                      control={form.control}
+                      name={`holidays.${index}.name`}
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          {index === 0 && <FormLabel className="text-xs text-muted-foreground">Holiday Name</FormLabel>}
+                          <FormControl>
+                            <Input placeholder="e.g. New Year" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`holidays.${index}.boost`}
+                      render={({ field }) => (
+                        <FormItem className="w-28">
+                          {index === 0 && <FormLabel className="text-xs text-muted-foreground">Boost</FormLabel>}
+                          <FormControl>
+                            <Input type="number" step="0.01" placeholder="0.25" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className={index === 0 ? "mt-6" : ""}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeHoliday(index)}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </div>

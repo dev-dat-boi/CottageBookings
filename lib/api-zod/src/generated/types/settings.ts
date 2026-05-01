@@ -6,12 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DayMultipliers } from "./dayMultipliers";
-import type { HolidayBoosts } from "./holidayBoosts";
-import type { SeasonMultipliers } from "./seasonMultipliers";
+import type { Holiday } from "./holiday";
+import type { Season } from "./season";
 
 export interface Settings {
   basePrice: number;
-  seasonMultipliers: SeasonMultipliers;
+  seasons: Season[];
   dayMultipliers: DayMultipliers;
-  holidayBoosts: HolidayBoosts;
+  holidays: Holiday[];
 }
