@@ -1,28 +1,28 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { DayPicker, DateRange } from "react-day-picker";
-import { format } from "date-fns";
+import { format, eachDayOfInterval, parseISO } from "date-fns";
 import "react-day-picker/dist/style.css";
 import {
   useCalculateBooking, useGetSettings, getGetSettingsQueryKey,
-  useCreateRental, getGetRentalsQueryKey,
+  useCreateRental, getGetRentalsQueryKey, useGetRentals,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Calculator, BookCheck } from "lucide-react";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from "@/components/ui/dialog";
+import { Loader2, Calculator, BookCheck, Home } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
 type RateType = "standard" | "family";
 
 export function BookingsTab() {
   const { toast } = useToast();
+  const { isLoggedIn, user } = useAuth();
   const queryClient = useQueryClient();
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [showRateDialog, setShowRateDialog] = useState(false);
@@ -32,6 +32,25 @@ export function BookingsTab() {
   const calculateMutation = useCalculateBooking();
   const createRentalMutation = useCreateRental();
   const { data: settings } = useGetSettings({ query: { queryKey: getGetSettingsQueryKey() } });
+  const { data: existingRentals } = useGetRentals({ query: { queryKey: getGetRentalsQueryKey(), enabled: isLoggedIn } });
+
+  // Build set of booked dates
+  const bookedDates = useMemo(() => {
+    if (!existingRentals) return new Set<string>();
+    const dates = new Set<string>();
+    for (const r of existingRentals) {
+      if (r.status === "cancelled") continue;
+      try {
+        const days = eachDayOfInterval({ start: parseISO(r.startDate), end: parseISO(r.endDate) });
+        for (const d of days) dates.add(format(d, "yyyy-MM-dd"));
+      } catch {}
+    }
+    return dates;
+  }, [existingRentals]);
+
+  const disabledDays = useMemo(() => {
+    return [...bookedDates].map(d => parseISO(d));
+  }, [bookedDates]);
 
   const result = calculateMutation.data;
 
@@ -47,26 +66,24 @@ export function BookingsTab() {
       data: {
         startDate: format(dateRange!.from!, "yyyy-MM-dd"),
         endDate: format(dateRange!.to!, "yyyy-MM-dd"),
-        rateType,
-        includeMultipliers,
+        rateType, includeMultipliers,
       },
     });
   };
 
-  const handleBook = (renterName: string, phone: string, email: string, extraDetails: string) => {
+  const handleBook = (renterName: string, phone: string, email: string, details: string) => {
     if (!result || !dateRange?.from || !dateRange?.to) return;
     createRentalMutation.mutate(
       {
         data: {
-          renterName,
-          phone,
-          email,
+          renterName, phone, email,
           startDate: format(dateRange.from, "yyyy-MM-dd"),
           endDate: format(dateRange.to, "yyyy-MM-dd"),
           nights: result.nights,
           totalPrice: result.totalPrice,
           rateType: result.rateType,
-          extraDetails,
+          bookingType: "standard",
+          extraDetails: details,
         },
       },
       {
@@ -76,27 +93,67 @@ export function BookingsTab() {
           setDateRange(undefined);
           calculateMutation.reset();
           setChosenRate(null);
-          toast({ title: "Booking submitted!", description: "Rental has been added to the Rentals tab." });
+          toast({ title: "Booking submitted!", description: "Your rental is pending owner approval." });
         },
         onError: () => toast({ title: "Error", description: "Failed to submit booking.", variant: "destructive" }),
       }
     );
   };
 
+  const handlePersonalBook = (renterName: string, details: string) => {
+    if (!dateRange?.from || !dateRange?.to) return;
+    const start = format(dateRange.from, "yyyy-MM-dd");
+    const end = format(dateRange.to, "yyyy-MM-dd");
+    const nights = Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24));
+    createRentalMutation.mutate(
+      {
+        data: {
+          renterName,
+          phone: "",
+          email: user?.email || "",
+          startDate: start,
+          endDate: end,
+          nights,
+          totalPrice: 0,
+          rateType: "personal",
+          bookingType: "personal",
+          extraDetails: details,
+        },
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetRentalsQueryKey() });
+          setShowBookDialog(false);
+          setDateRange(undefined);
+          calculateMutation.reset();
+          toast({ title: "Personal use reserved!", description: "Dates blocked off on the calendar." });
+        },
+        onError: () => toast({ title: "Error", description: "Failed to reserve dates.", variant: "destructive" }),
+      }
+    );
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-8">
-      {/* Date picker panel */}
       <div className="space-y-6">
         <Card className="border-border/40 shadow-sm">
           <CardHeader>
             <CardTitle>Select Dates</CardTitle>
-            <CardDescription>Choose check-in and check-out dates.</CardDescription>
+            <CardDescription>
+              Choose check-in and check-out dates.
+              {isLoggedIn && bookedDates.size > 0 && <span className="text-muted-foreground/70"> · Grey = already booked</span>}
+            </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center">
+            <style>{`
+              .rdp-day_disabled { background: #f3f4f6 !important; color: #9ca3af !important; text-decoration: line-through; opacity: 0.6; }
+              .dark .rdp-day_disabled { background: #1f2937 !important; color: #6b7280 !important; }
+            `}</style>
             <DayPicker
               mode="range"
               selected={dateRange}
               onSelect={setDateRange}
+              disabled={disabledDays}
               className="border border-border/40 p-4 rounded-xl bg-card shadow-sm"
               classNames={{
                 day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
@@ -112,20 +169,20 @@ export function BookingsTab() {
                 ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Calculating...</>
                 : <><Calculator className="w-5 h-5 mr-2" /> Calculate Rate</>}
             </Button>
-            {result && (
-              <Button
-                variant="default"
-                className="w-full mt-3 py-6 text-base bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => setShowBookDialog(true)}
-              >
+            {result && isLoggedIn && (
+              <Button variant="default" className="w-full mt-3 py-6 text-base bg-green-600 hover:bg-green-700 text-white" onClick={() => setShowBookDialog(true)}>
                 <BookCheck className="w-5 h-5 mr-2" /> Book
+              </Button>
+            )}
+            {isLoggedIn && dateRange?.from && dateRange?.to && (
+              <Button variant="outline" className="w-full mt-2 py-5 text-sm" onClick={() => setShowBookDialog(true)}>
+                <Home className="w-4 h-4 mr-2" /> Reserve for Personal Use
               </Button>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Results panel */}
       <div>
         <Card className="border-border/40 shadow-sm h-full">
           <CardHeader>
@@ -149,7 +206,6 @@ export function BookingsTab() {
                     </Badge>
                   )}
                 </div>
-
                 <div className="grid grid-cols-3 gap-2 sm:gap-4">
                   <div className="bg-card border border-border/40 p-2 sm:p-6 rounded-xl text-center shadow-sm min-w-0">
                     <p className="text-[10px] sm:text-sm text-muted-foreground font-medium mb-0.5 leading-tight">Nights</p>
@@ -166,7 +222,6 @@ export function BookingsTab() {
                     <p className="text-[9px] sm:hidden text-muted-foreground">.{String(Math.round((result.avgDailyRate % 1) * 100)).padStart(2, "0")}</p>
                   </div>
                 </div>
-
                 <div className="border border-border/40 rounded-xl overflow-hidden shadow-sm">
                   <div className="overflow-x-auto">
                     <Table>
@@ -192,18 +247,12 @@ export function BookingsTab() {
                             <TableCell>
                               <div className="flex flex-wrap gap-1.5">
                                 {result.includeMultipliers && entry.dayMult !== 1 && (
-                                  <Badge variant="secondary" className="font-normal whitespace-nowrap">
-                                    Day: {((entry.dayMult - 1) * 100).toFixed(0)}%
-                                  </Badge>
+                                  <Badge variant="secondary" className="font-normal whitespace-nowrap">Day: {((entry.dayMult - 1) * 100).toFixed(0)}%</Badge>
                                 )}
                                 {result.includeMultipliers && entry.holiday && (
-                                  <Badge className="bg-accent text-accent-foreground font-normal hover:bg-accent whitespace-nowrap">
-                                    {entry.holiday}: +{(entry.holidayBoost * 100).toFixed(0)}%
-                                  </Badge>
+                                  <Badge className="bg-accent text-accent-foreground font-normal hover:bg-accent whitespace-nowrap">{entry.holiday}: +{(entry.holidayBoost * 100).toFixed(0)}%</Badge>
                                 )}
-                                {(!result.includeMultipliers || (entry.dayMult === 1 && !entry.holiday)) && (
-                                  <span className="text-sm text-muted-foreground">—</span>
-                                )}
+                                {(!result.includeMultipliers || (entry.dayMult === 1 && !entry.holiday)) && <span className="text-sm text-muted-foreground">—</span>}
                               </div>
                             </TableCell>
                             <TableCell className="text-right font-bold whitespace-nowrap">${entry.price.toFixed(2)}</TableCell>
@@ -219,25 +268,23 @@ export function BookingsTab() {
         </Card>
       </div>
 
-      <RateDialog
-        open={showRateDialog}
-        onClose={() => setShowRateDialog(false)}
-        onConfirm={handleConfirmRate}
-        standardRate={settings?.basePrice ?? 300}
-        familyRate={settings?.familyRate ?? 200}
-      />
+      <RateDialog open={showRateDialog} onClose={() => setShowRateDialog(false)} onConfirm={handleConfirmRate}
+        standardRate={settings?.basePrice ?? 300} familyRate={settings?.familyRate ?? 200} />
 
-      {showBookDialog && result && dateRange?.from && dateRange?.to && (
+      {showBookDialog && dateRange?.from && dateRange?.to && (
         <BookDialog
           open={showBookDialog}
           onClose={() => setShowBookDialog(false)}
           onBook={handleBook}
+          onPersonalBook={handlePersonalBook}
           isPending={createRentalMutation.isPending}
+          hasCalculation={!!result}
           startDate={format(dateRange.from, "yyyy-MM-dd")}
           endDate={format(dateRange.to, "yyyy-MM-dd")}
-          nights={result.nights}
-          totalPrice={result.totalPrice}
-          rateType={result.rateType}
+          nights={result?.nights ?? Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24))}
+          totalPrice={result?.totalPrice ?? 0}
+          rateType={result?.rateType ?? "standard"}
+          defaultName={user?.name || ""}
         />
       )}
     </div>
@@ -247,12 +294,15 @@ export function BookingsTab() {
 interface BookDialogProps {
   open: boolean; onClose: () => void;
   onBook: (name: string, phone: string, email: string, details: string) => void;
-  isPending: boolean;
+  onPersonalBook: (name: string, details: string) => void;
+  isPending: boolean; hasCalculation: boolean;
   startDate: string; endDate: string; nights: number; totalPrice: number; rateType: string;
+  defaultName: string;
 }
 
-function BookDialog({ open, onClose, onBook, isPending, startDate, endDate, nights, totalPrice, rateType }: BookDialogProps) {
-  const [name, setName] = useState("");
+function BookDialog({ open, onClose, onBook, onPersonalBook, isPending, hasCalculation, startDate, endDate, nights, totalPrice, rateType, defaultName }: BookDialogProps) {
+  const [mode, setMode] = useState<"standard" | "personal">(hasCalculation ? "standard" : "personal");
+  const [name, setName] = useState(defaultName);
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [details, setDetails] = useState("");
@@ -261,39 +311,58 @@ function BookDialog({ open, onClose, onBook, isPending, startDate, endDate, nigh
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Book this Rental</DialogTitle>
+          <DialogTitle>{mode === "personal" ? "Reserve for Personal Use" : "Book this Rental"}</DialogTitle>
           <DialogDescription>
-            {startDate} → {endDate} · {nights} night{nights !== 1 ? "s" : ""} · ${totalPrice.toFixed(2)} ({rateType === "family" ? "Family" : "Standard"})
+            {startDate} → {endDate} · {nights} night{nights !== 1 ? "s" : ""}
+            {mode === "standard" && ` · $${totalPrice.toFixed(2)} (${rateType === "family" ? "Family" : "Standard"})`}
           </DialogDescription>
         </DialogHeader>
 
+        {hasCalculation && (
+          <div className="flex gap-2 pb-1">
+            <Button variant={mode === "standard" ? "default" : "outline"} size="sm" className="flex-1" onClick={() => setMode("standard")}>
+              <BookCheck className="w-3.5 h-3.5 mr-1" /> Standard Booking
+            </Button>
+            <Button variant={mode === "personal" ? "default" : "outline"} size="sm" className="flex-1 bg-blue-600 hover:bg-blue-700 data-[active=false]:bg-transparent" onClick={() => setMode("personal")}>
+              <Home className="w-3.5 h-3.5 mr-1" /> Personal Use
+            </Button>
+          </div>
+        )}
+
         <div className="space-y-3 py-1">
           <div>
-            <label className="text-sm font-medium text-foreground">Renter Name *</label>
+            <label className="text-sm font-medium">{mode === "personal" ? "Your Name" : "Renter Name"} *</label>
             <Input value={name} onChange={e => setName(e.target.value)} placeholder="Full name" className="mt-1" />
           </div>
+          {mode === "standard" && (
+            <>
+              <div>
+                <label className="text-sm font-medium">Phone Number *</label>
+                <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" type="tel" className="mt-1" />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Email</label>
+                <Input value={email} onChange={e => setEmail(e.target.value)} placeholder="renter@email.com" type="email" className="mt-1" />
+              </div>
+            </>
+          )}
           <div>
-            <label className="text-sm font-medium text-foreground">Phone Number *</label>
-            <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" type="tel" className="mt-1" />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-foreground">Email</label>
-            <Input value={email} onChange={e => setEmail(e.target.value)} placeholder="renter@email.com" type="email" className="mt-1" />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-foreground">Extra Details</label>
-            <Textarea value={details} onChange={e => setDetails(e.target.value)} placeholder="Number of guests, special requests, notes…" rows={3} className="mt-1" />
+            <label className="text-sm font-medium">Notes</label>
+            <Textarea value={details} onChange={e => setDetails(e.target.value)}
+              placeholder={mode === "personal" ? "Who's staying, notes..." : "Number of guests, special requests..."}
+              rows={3} className="mt-1" />
           </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button
-            disabled={!name.trim() || !phone.trim() || isPending}
-            onClick={() => onBook(name.trim(), phone.trim(), email.trim(), details.trim())}
-            className="bg-green-600 hover:bg-green-700 text-white"
+            disabled={!name.trim() || (mode === "standard" && !phone.trim()) || isPending}
+            onClick={() => mode === "personal" ? onPersonalBook(name.trim(), details.trim()) : onBook(name.trim(), phone.trim(), email.trim(), details.trim())}
+            className={mode === "personal" ? "bg-blue-600 hover:bg-blue-700 text-white" : "bg-green-600 hover:bg-green-700 text-white"}
           >
-            {isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting…</> : <><BookCheck className="w-4 h-4 mr-2" /> Confirm Booking</>}
+            {isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting…</> :
+              mode === "personal" ? <><Home className="w-4 h-4 mr-2" /> Reserve</> : <><BookCheck className="w-4 h-4 mr-2" /> Confirm</>}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -301,13 +370,11 @@ function BookDialog({ open, onClose, onBook, isPending, startDate, endDate, nigh
   );
 }
 
-interface RateDialogProps {
+function RateDialog({ open, onClose, onConfirm, standardRate, familyRate }: {
   open: boolean; onClose: () => void;
   onConfirm: (rateType: RateType, includeMultipliers: boolean) => void;
   standardRate: number; familyRate: number;
-}
-
-function RateDialog({ open, onClose, onConfirm, standardRate, familyRate }: RateDialogProps) {
+}) {
   const [selected, setSelected] = useState<RateType>("standard");
   const [withMult, setWithMult] = useState(false);
 

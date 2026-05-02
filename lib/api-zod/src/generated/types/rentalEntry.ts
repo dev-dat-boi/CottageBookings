@@ -16,7 +16,9 @@ export interface RentalEntry {
   endDate: string;
   nights: number;
   totalPrice: number;
+  agreedPrice?: number | null;
   rateType: string;
+  bookingType: string;
   extraDetails: string;
   status: string;
 }

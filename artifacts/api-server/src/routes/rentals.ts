@@ -1,9 +1,10 @@
 import { Router } from "express";
-import { db, rentalsTable, settingsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, rentalsTable, settingsTable, ownerApprovalsTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 import { CreateRentalBody, UpdateRentalBody } from "@workspace/api-zod";
 import { sendEmail, buildIcalDataUrl, buildRentalEmailHtml } from "../lib/email";
 import { ensureDefaultSettings } from "./settings";
+import { extractToken } from "../lib/auth";
 
 const router = Router();
 
@@ -11,10 +12,55 @@ function parseOwners(json: string): { name: string; email: string }[] {
   try { const a = JSON.parse(json); return Array.isArray(a) ? a : []; } catch { return []; }
 }
 
-async function getOwnerEmails(): Promise<string[]> {
+async function getOwners(): Promise<{ name: string; email: string }[]> {
   const rows = await ensureDefaultSettings();
-  const owners = parseOwners((rows[0] as any).ownersJson ?? "[]");
-  return owners.map((o: any) => o.email).filter(Boolean);
+  return parseOwners((rows[0] as any).ownersJson ?? "[]");
+}
+
+function rowToApi(row: typeof rentalsTable.$inferSelect) {
+  return {
+    id: row.id,
+    createdAt: row.createdAt.toISOString(),
+    renterName: row.renterName,
+    phone: row.phone,
+    email: row.email,
+    startDate: row.startDate,
+    endDate: row.endDate,
+    nights: row.nights,
+    totalPrice: row.totalPrice,
+    agreedPrice: row.agreedPrice ?? null,
+    rateType: row.rateType,
+    bookingType: row.bookingType,
+    extraDetails: row.extraDetails,
+    status: row.status,
+  };
+}
+
+async function checkAndAutoConfirm(rentalId: number) {
+  const approvals = await db.select().from(ownerApprovalsTable).where(eq(ownerApprovalsTable.rentalId, rentalId));
+  if (approvals.length === 0) return;
+  const allApproved = approvals.every(a => a.approved);
+  if (!allApproved) return;
+
+  const rentals = await db.update(rentalsTable)
+    .set({ status: "submitted" })
+    .where(and(eq(rentalsTable.id, rentalId), eq(rentalsTable.status, "pending_approval")))
+    .returning();
+  if (rentals.length === 0) return;
+  const rental = rentals[0];
+
+  // Send emails
+  const ownerEmails = approvals.map(a => a.ownerEmail).filter(Boolean);
+  if (ownerEmails.length > 0) {
+    const ical = buildIcalDataUrl(rental);
+    const html = buildRentalEmailHtml(rowToApi(rental), ical, false);
+    sendEmail({ to: ownerEmails, subject: `Rental Approved - ${rental.renterName}`, html }).catch(() => {});
+  }
+  if (rental.email) {
+    const ical = buildIcalDataUrl(rental);
+    const html = buildRentalEmailHtml(rowToApi(rental), ical, true);
+    sendEmail({ to: [rental.email], subject: `Your Cottage Rental is Confirmed — ${rental.startDate} to ${rental.endDate}`, html }).catch(() => {});
+  }
 }
 
 router.get("/rentals", async (req, res) => {
@@ -34,7 +80,10 @@ router.post("/rentals", async (req, res) => {
     return;
   }
   const body = parsed.data;
+  const user = extractToken(req);
   try {
+    const owners = await getOwners();
+    const initialStatus = owners.length === 0 ? "submitted" : "pending_approval";
     const inserted = await db.insert(rentalsTable).values({
       renterName: body.renterName,
       phone: body.phone,
@@ -44,21 +93,29 @@ router.post("/rentals", async (req, res) => {
       nights: body.nights,
       totalPrice: body.totalPrice,
       rateType: body.rateType,
+      bookingType: (body as any).bookingType ?? "standard",
       extraDetails: body.extraDetails ?? "",
-      status: "submitted",
+      status: initialStatus,
     }).returning();
     const rental = inserted[0];
-    const apiRental = rowToApi(rental);
 
-    // Email owners
-    const ownerEmails = await getOwnerEmails();
-    if (ownerEmails.length > 0) {
+    if (owners.length > 0) {
+      for (const owner of owners) {
+        await db.insert(ownerApprovalsTable).values({
+          rentalId: rental.id,
+          ownerEmail: owner.email,
+          ownerName: owner.name,
+          approved: false,
+        });
+      }
+    } else {
+      // No owners — send notification emails immediately
       const ical = buildIcalDataUrl(rental);
-      const html = buildRentalEmailHtml(apiRental, ical, false);
-      sendEmail({ to: ownerEmails, subject: `Rental - ${rental.renterName}`, html }).catch(() => {});
+      const html = buildRentalEmailHtml(rowToApi(rental), ical, false);
+      // No owners to email
     }
 
-    res.status(201).json(apiRental);
+    res.status(201).json(rowToApi(rental));
   } catch (err) {
     req.log.error({ err }, "Failed to create rental");
     res.status(500).json({ error: "Failed to create rental" });
@@ -83,7 +140,7 @@ router.patch("/rentals/:id", async (req, res) => {
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = UpdateRentalBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid data", details: parsed.error.issues }); return; }
-  const { status, renterName, phone, email, extraDetails, sendOwnerEmail, sendRenterEmail } = parsed.data;
+  const { status, renterName, phone, email, extraDetails, agreedPrice, sendOwnerEmail, sendRenterEmail } = parsed.data;
   try {
     const updates: Partial<typeof rentalsTable.$inferInsert> = {};
     if (status != null) updates.status = status;
@@ -91,13 +148,7 @@ router.patch("/rentals/:id", async (req, res) => {
     if (phone != null) updates.phone = phone;
     if (email != null) updates.email = email;
     if (extraDetails != null) updates.extraDetails = extraDetails;
-
-    if (Object.keys(updates).length === 0 && !sendOwnerEmail && !sendRenterEmail) {
-      const rows = await db.select().from(rentalsTable).where(eq(rentalsTable.id, id));
-      if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
-      res.json(rowToApi(rows[0]));
-      return;
-    }
+    if (agreedPrice !== undefined) updates.agreedPrice = agreedPrice ?? undefined;
 
     let updatedRows;
     if (Object.keys(updates).length > 0) {
@@ -106,15 +157,14 @@ router.patch("/rentals/:id", async (req, res) => {
       updatedRows = await db.select().from(rentalsTable).where(eq(rentalsTable.id, id));
     }
     if (updatedRows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
-
     const rental = updatedRows[0];
     const apiRental = rowToApi(rental);
 
-    // Send emails if requested
     if (sendOwnerEmail || sendRenterEmail) {
       const ical = buildIcalDataUrl(rental);
       if (sendOwnerEmail) {
-        const ownerEmails = await getOwnerEmails();
+        const owners = await getOwners();
+        const ownerEmails = owners.map(o => o.email).filter(Boolean);
         if (ownerEmails.length > 0) {
           const html = buildRentalEmailHtml(apiRental, ical, false);
           sendEmail({ to: ownerEmails, subject: `Rental Confirmed - ${rental.renterName}`, html }).catch(() => {});
@@ -125,7 +175,6 @@ router.patch("/rentals/:id", async (req, res) => {
         sendEmail({ to: [rental.email], subject: `Your Cottage Rental is Confirmed — ${rental.startDate} to ${rental.endDate}`, html }).catch(() => {});
       }
     }
-
     res.json(apiRental);
   } catch (err) {
     req.log.error({ err }, "Failed to update rental");
@@ -137,6 +186,7 @@ router.delete("/rentals/:id", async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
+    await db.delete(ownerApprovalsTable).where(eq(ownerApprovalsTable.rentalId, id));
     await db.delete(rentalsTable).where(eq(rentalsTable.id, id));
     res.json({ deleted: 1 });
   } catch (err) {
@@ -145,21 +195,46 @@ router.delete("/rentals/:id", async (req, res) => {
   }
 });
 
-function rowToApi(row: typeof rentalsTable.$inferSelect) {
-  return {
-    id: row.id,
-    createdAt: row.createdAt.toISOString(),
-    renterName: row.renterName,
-    phone: row.phone,
-    email: row.email,
-    startDate: row.startDate,
-    endDate: row.endDate,
-    nights: row.nights,
-    totalPrice: row.totalPrice,
-    rateType: row.rateType,
-    extraDetails: row.extraDetails,
-    status: row.status,
-  };
-}
+// Approval routes
+router.get("/rentals/:id/approvals", async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const rows = await db.select().from(ownerApprovalsTable).where(eq(ownerApprovalsTable.rentalId, id));
+    res.json(rows.map(r => ({
+      id: r.id,
+      rentalId: r.rentalId,
+      ownerEmail: r.ownerEmail,
+      ownerName: r.ownerName,
+      approved: r.approved,
+      approvedAt: r.approvedAt?.toISOString() ?? null,
+    })));
+  } catch (err) {
+    req.log.error({ err }, "Failed to get approvals");
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.patch("/rentals/:id/approvals/:ownerEmail", async (req, res) => {
+  const rentalId = parseInt(req.params.id);
+  const ownerEmail = decodeURIComponent(req.params.ownerEmail);
+  if (isNaN(rentalId)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const { approved } = req.body;
+  if (typeof approved !== "boolean") { res.status(400).json({ error: "'approved' boolean required" }); return; }
+  try {
+    await db.update(ownerApprovalsTable)
+      .set({ approved, approvedAt: approved ? new Date() : null })
+      .where(and(eq(ownerApprovalsTable.rentalId, rentalId), eq(ownerApprovalsTable.ownerEmail, ownerEmail)));
+
+    if (approved) await checkAndAutoConfirm(rentalId);
+
+    const rental = await db.select().from(rentalsTable).where(eq(rentalsTable.id, rentalId));
+    if (rental.length === 0) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(rowToApi(rental[0]));
+  } catch (err) {
+    req.log.error({ err }, "Failed to set approval");
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
 export default router;

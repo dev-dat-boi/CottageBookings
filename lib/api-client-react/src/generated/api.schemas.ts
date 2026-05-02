@@ -118,7 +118,9 @@ export interface RentalEntry {
   endDate: string;
   nights: number;
   totalPrice: number;
+  agreedPrice?: number | null;
   rateType: string;
+  bookingType: string;
   extraDetails: string;
   status: string;
 }
@@ -132,6 +134,7 @@ export interface RentalInput {
   nights: number;
   totalPrice: number;
   rateType: string;
+  bookingType?: string;
   extraDetails?: string;
 }
 
@@ -141,8 +144,59 @@ export interface RentalPatch {
   phone?: string | null;
   email?: string | null;
   extraDetails?: string | null;
+  agreedPrice?: number | null;
   sendOwnerEmail?: boolean | null;
   sendRenterEmail?: boolean | null;
+}
+
+export interface OwnerApproval {
+  id: number;
+  rentalId: number;
+  ownerEmail: string;
+  ownerName: string;
+  approved: boolean;
+  approvedAt?: string | null;
+}
+
+export interface ApprovalPatch {
+  approved: boolean;
+}
+
+export interface User {
+  id: number;
+  email: string;
+  name: string;
+  role: string;
+  createdAt: string;
+}
+
+export interface LoginBody {
+  email: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  token: string;
+  user: User;
+}
+
+export interface UserInput {
+  email: string;
+  name: string;
+  password: string;
+  role: string;
+}
+
+export interface UserPatch {
+  name?: string | null;
+  role?: string | null;
+  password?: string | null;
+}
+
+export interface CottageInfo {
+  title: string;
+  description: string;
+  photos: string[];
 }
 
 export interface ChangeHistoryEntry {
@@ -165,6 +219,10 @@ export type GetCalendarParams = {
 };
 
 export type DeleteRental200 = {
+  deleted: number;
+};
+
+export type DeleteUser200 = {
   deleted: number;
 };
 

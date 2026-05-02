@@ -16,10 +16,10 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, Save, Plus, Trash2, Lock, LockOpen, Shield, Eye, EyeOff, CalendarDays } from "lucide-react";
+import { Loader2, Save, Plus, Trash2, CalendarDays, Lock } from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useAdminLock } from "@/contexts/AdminLockContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 const MD_REGEX = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
@@ -258,86 +258,17 @@ function YearHolidayEditor({ yearKey, control, form, disabled }: { yearKey: stri
   );
 }
 
-// ─── Admin Lock Section ───────────────────────────────────────────────────────
-type LockModalMode = "set-password" | "unlock" | "remove-lock" | "lock-confirm" | null;
-
-function AdminLockSection() {
-  const { isLockEnabled, isLocked, enableLock, lock, unlock, disableLock } = useAdminLock();
-  const { toast } = useToast();
-  const [modalMode, setModalMode] = useState<LockModalMode>(null);
-  const [password, setPassword] = useState("");
-  const [showPw, setShowPw] = useState(false);
-  const [error, setError] = useState("");
-
-  function closeModal() { setModalMode(null); setPassword(""); setError(""); setShowPw(false); }
-
-  async function handleSubmit() {
-    if (!password) { setError("Password is required."); return; }
-    if (modalMode === "set-password") {
-      await enableLock(password);
-      toast({ title: "Admin lock enabled", description: "Click 'Lock Now' to restrict access." });
-      closeModal();
-    } else if (modalMode === "unlock") {
-      const ok = await unlock(password);
-      if (ok) { toast({ title: "Unlocked" }); closeModal(); } else setError("Incorrect password.");
-    } else if (modalMode === "remove-lock") {
-      const ok = await disableLock(password);
-      if (ok) { toast({ title: "Admin lock removed" }); closeModal(); } else setError("Incorrect password.");
-    }
-  }
-
+function AdminOnlyBanner() {
   return (
-    <>
-      <Card className={`border-2 shadow-sm ${isLocked ? "border-red-300 bg-red-50/40 dark:border-red-800 dark:bg-red-950/10" : isLockEnabled ? "border-green-300 bg-green-50/40 dark:border-green-800 dark:bg-green-950/10" : "border-border/40"}`}>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-            <Shield className="w-4 h-4" />
-            Admin Lock
-            {isLocked && <span className="text-xs font-normal text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-full px-2 py-0.5">LOCKED — Read-only</span>}
-            {isLockEnabled && !isLocked && <span className="text-xs font-normal text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-full px-2 py-0.5">Unlocked</span>}
-          </CardTitle>
-          <CardDescription>
-            {isLocked ? "Enter the password to restore edit access." : isLockEnabled ? "Lock the UI to prevent guests from making changes." : "Enable a password lock to make the UI read-only for guests."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2 pt-0">
-          {!isLockEnabled && <Button variant="outline" size="sm" onClick={() => setModalMode("set-password")}><Lock className="w-4 h-4 mr-2" /> Set Password & Enable Lock</Button>}
-          {isLockEnabled && !isLocked && (<><Button size="sm" onClick={() => setModalMode("lock-confirm")}><Lock className="w-4 h-4 mr-2" /> Lock Now</Button><Button variant="outline" size="sm" onClick={() => setModalMode("remove-lock")}>Remove Lock</Button></>)}
-          {isLocked && <Button size="sm" variant="outline" onClick={() => setModalMode("unlock")}><LockOpen className="w-4 h-4 mr-2" /> Unlock</Button>}
-        </CardContent>
-      </Card>
-
-      <Dialog open={modalMode === "lock-confirm"} onOpenChange={closeModal}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><Lock className="w-5 h-5" /> Lock the UI?</DialogTitle><DialogDescription>All controls become read-only. Enter your password to unlock later.</DialogDescription></DialogHeader>
-          <DialogFooter><Button variant="outline" onClick={closeModal}>Cancel</Button><Button onClick={() => { lock(); closeModal(); }}>Lock Now</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!modalMode && modalMode !== "lock-confirm"} onOpenChange={closeModal}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {modalMode === "set-password" ? <><Lock className="w-5 h-5" /> Set Admin Password</> : <><LockOpen className="w-5 h-5" /> {modalMode === "unlock" ? "Unlock" : "Remove Lock"}</>}
-            </DialogTitle>
-            <DialogDescription>
-              {modalMode === "set-password" ? "Choose a password to protect the pricing settings." : modalMode === "unlock" ? "Enter your admin password to restore edit access." : "Enter your password to remove the lock entirely."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-2 space-y-2">
-            <div className="relative">
-              <Input type={showPw ? "text" : "password"} placeholder="Password" value={password} onChange={e => { setPassword(e.target.value); setError(""); }} onKeyDown={e => e.key === "Enter" && handleSubmit()} autoFocus />
-              <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-2 top-2 text-muted-foreground">{showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
-            </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeModal}>Cancel</Button>
-            <Button onClick={handleSubmit}>{modalMode === "set-password" ? "Enable Lock" : modalMode === "unlock" ? "Unlock" : "Remove"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+    <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/10 shadow-sm">
+      <CardContent className="py-5 flex items-center gap-3">
+        <Lock className="w-5 h-5 text-amber-500 shrink-0" />
+        <div>
+          <p className="font-semibold text-foreground text-sm">Read-Only View</p>
+          <p className="text-xs text-muted-foreground mt-0.5">You can view these settings but only admins can make changes.</p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -345,7 +276,8 @@ function AdminLockSection() {
 export function ControlPanelTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { isLocked } = useAdminLock();
+  const { isAdmin } = useAuth();
+  const isLocked = !isAdmin;
   const { data: settings, isLoading } = useGetSettings({ query: { queryKey: getGetSettingsQueryKey() } });
   const updateMutation = useUpdateSettings();
 
@@ -400,8 +332,8 @@ export function ControlPanelTab() {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
 
-        {/* Admin Lock */}
-        <AdminLockSection />
+        {/* Read-only banner for non-admins */}
+        {isLocked && <AdminOnlyBanner />}
 
         {/* Save bar */}
         <div className="flex flex-wrap justify-between items-center bg-card p-4 rounded-xl border border-border/40 shadow-sm gap-3">

@@ -1,12 +1,11 @@
 import { useState } from "react";
 import { useGetHistory, useClearHistory, getGetHistoryQueryKey, type GetHistoryParams } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Loader2, Trash2, History, Settings, CalendarDays, ListOrdered, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useAdminLock } from "@/contexts/AdminLockContext";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
@@ -24,7 +23,7 @@ function formatTime(iso: string) {
 }
 
 export function HistoryTab() {
-  const { isLockEnabled, isLocked } = useAdminLock();
+  const { isLoggedIn } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [confirmClear, setConfirmClear] = useState(false);
@@ -32,36 +31,19 @@ export function HistoryTab() {
   const historyParams: GetHistoryParams = { limit: 300 };
   const { data: history, isLoading } = useGetHistory(
     historyParams,
-    { query: { queryKey: getGetHistoryQueryKey(historyParams), enabled: isLockEnabled && !isLocked } }
+    { query: { queryKey: getGetHistoryQueryKey(historyParams), enabled: isLoggedIn } }
   );
   const clearMutation = useClearHistory();
 
-  // If no lock set up, show a prompt
-  if (!isLockEnabled) {
+  if (!isLoggedIn) {
     return (
       <Card className="border-border/40 shadow-sm">
         <CardContent className="py-16 flex flex-col items-center gap-4 text-center">
           <Lock className="w-10 h-10 text-muted-foreground/40" />
           <div>
-            <p className="font-semibold text-foreground">Admin Lock Required</p>
+            <p className="font-semibold text-foreground">Sign In Required</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Set up an admin lock in the Control Panel to access the change history.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (isLocked) {
-    return (
-      <Card className="border-border/40 shadow-sm">
-        <CardContent className="py-16 flex flex-col items-center gap-4 text-center">
-          <Lock className="w-10 h-10 text-amber-500/60" />
-          <div>
-            <p className="font-semibold text-foreground">Locked</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Unlock the app in the Control Panel to view change history.
+              Sign in to view change history.
             </p>
           </div>
         </CardContent>
@@ -84,7 +66,7 @@ export function HistoryTab() {
                 Change History
               </CardTitle>
               <CardDescription className="mt-1">
-                A log of all pricing changes — settings saves, calendar overrides, and bulk operations.
+                A log of pricing changes — settings saves, calendar overrides, and bulk operations.
               </CardDescription>
             </div>
             <Button

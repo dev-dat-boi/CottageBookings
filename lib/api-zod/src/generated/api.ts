@@ -336,7 +336,9 @@ export const GetRentalsResponseItem = zod.object({
   endDate: zod.string(),
   nights: zod.number(),
   totalPrice: zod.number(),
+  agreedPrice: zod.number().nullish(),
   rateType: zod.string(),
+  bookingType: zod.string(),
   extraDetails: zod.string(),
   status: zod.string(),
 });
@@ -354,6 +356,7 @@ export const CreateRentalBody = zod.object({
   nights: zod.number(),
   totalPrice: zod.number(),
   rateType: zod.string(),
+  bookingType: zod.string().optional(),
   extraDetails: zod.string().optional(),
 });
 
@@ -374,7 +377,9 @@ export const GetRentalResponse = zod.object({
   endDate: zod.string(),
   nights: zod.number(),
   totalPrice: zod.number(),
+  agreedPrice: zod.number().nullish(),
   rateType: zod.string(),
+  bookingType: zod.string(),
   extraDetails: zod.string(),
   status: zod.string(),
 });
@@ -392,6 +397,7 @@ export const UpdateRentalBody = zod.object({
   phone: zod.string().nullish(),
   email: zod.string().nullish(),
   extraDetails: zod.string().nullish(),
+  agreedPrice: zod.number().nullish(),
   sendOwnerEmail: zod.boolean().nullish(),
   sendRenterEmail: zod.boolean().nullish(),
 });
@@ -406,7 +412,9 @@ export const UpdateRentalResponse = zod.object({
   endDate: zod.string(),
   nights: zod.number(),
   totalPrice: zod.number(),
+  agreedPrice: zod.number().nullish(),
   rateType: zod.string(),
+  bookingType: zod.string(),
   extraDetails: zod.string(),
   status: zod.string(),
 });
@@ -420,6 +428,162 @@ export const DeleteRentalParams = zod.object({
 
 export const DeleteRentalResponse = zod.object({
   deleted: zod.number(),
+});
+
+/**
+ * @summary Get approval records for a rental
+ */
+export const GetRentalApprovalsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetRentalApprovalsResponseItem = zod.object({
+  id: zod.number(),
+  rentalId: zod.number(),
+  ownerEmail: zod.string(),
+  ownerName: zod.string(),
+  approved: zod.boolean(),
+  approvedAt: zod.string().nullish(),
+});
+export const GetRentalApprovalsResponse = zod.array(
+  GetRentalApprovalsResponseItem,
+);
+
+/**
+ * @summary Approve or un-approve a rental on behalf of an owner
+ */
+export const SetRentalApprovalParams = zod.object({
+  id: zod.coerce.number(),
+  ownerEmail: zod.coerce.string(),
+});
+
+export const SetRentalApprovalBody = zod.object({
+  approved: zod.boolean(),
+});
+
+export const SetRentalApprovalResponse = zod.object({
+  id: zod.number(),
+  createdAt: zod.string(),
+  renterName: zod.string(),
+  phone: zod.string(),
+  email: zod.string(),
+  startDate: zod.string(),
+  endDate: zod.string(),
+  nights: zod.number(),
+  totalPrice: zod.number(),
+  agreedPrice: zod.number().nullish(),
+  rateType: zod.string(),
+  bookingType: zod.string(),
+  extraDetails: zod.string(),
+  status: zod.string(),
+});
+
+/**
+ * @summary Login with email and password
+ */
+export const AuthLoginBody = zod.object({
+  email: zod.string(),
+  password: zod.string(),
+});
+
+export const AuthLoginResponse = zod.object({
+  token: zod.string(),
+  user: zod.object({
+    id: zod.number(),
+    email: zod.string(),
+    name: zod.string(),
+    role: zod.string(),
+    createdAt: zod.string(),
+  }),
+});
+
+/**
+ * @summary Get current logged-in user
+ */
+export const AuthMeResponse = zod.object({
+  id: zod.number(),
+  email: zod.string(),
+  name: zod.string(),
+  role: zod.string(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary List all users (admin only)
+ */
+export const ListUsersResponseItem = zod.object({
+  id: zod.number(),
+  email: zod.string(),
+  name: zod.string(),
+  role: zod.string(),
+  createdAt: zod.string(),
+});
+export const ListUsersResponse = zod.array(ListUsersResponseItem);
+
+/**
+ * @summary Create a new user (admin only)
+ */
+export const CreateUserBody = zod.object({
+  email: zod.string(),
+  name: zod.string(),
+  password: zod.string(),
+  role: zod.string(),
+});
+
+/**
+ * @summary Update a user (admin only)
+ */
+export const UpdateUserParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateUserBody = zod.object({
+  name: zod.string().nullish(),
+  role: zod.string().nullish(),
+  password: zod.string().nullish(),
+});
+
+export const UpdateUserResponse = zod.object({
+  id: zod.number(),
+  email: zod.string(),
+  name: zod.string(),
+  role: zod.string(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Delete a user (admin only)
+ */
+export const DeleteUserParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteUserResponse = zod.object({
+  deleted: zod.number(),
+});
+
+/**
+ * @summary Get cottage information (title, description, photos)
+ */
+export const GetCottageInfoResponse = zod.object({
+  title: zod.string(),
+  description: zod.string(),
+  photos: zod.array(zod.string()),
+});
+
+/**
+ * @summary Update cottage info (admin only)
+ */
+export const UpdateCottageInfoBody = zod.object({
+  title: zod.string(),
+  description: zod.string(),
+  photos: zod.array(zod.string()),
+});
+
+export const UpdateCottageInfoResponse = zod.object({
+  title: zod.string(),
+  description: zod.string(),
+  photos: zod.array(zod.string()),
 });
 
 /**

@@ -43,7 +43,7 @@ function rowToApi(row: typeof settingsTable.$inferSelect) {
   };
 }
 
-async function ensureDefaultSettings() {
+export async function ensureDefaultSettings() {
   const existing = await db.select().from(settingsTable).where(eq(settingsTable.id, 1));
   if (existing.length === 0) {
     await db.insert(settingsTable).values({
@@ -69,6 +69,60 @@ async function ensureDefaultSettings() {
   return db.select().from(settingsTable).where(eq(settingsTable.id, 1));
 }
 
+/** Build a human-readable diff of what changed in settings */
+function buildSettingsDiff(old: typeof settingsTable.$inferSelect, body: any): string {
+  const diffs: string[] = [];
+
+  if (old.basePrice !== body.basePrice) diffs.push(`Standard rate: $${old.basePrice} → $${body.basePrice}`);
+  if (old.familyRate !== body.familyRate) diffs.push(`Family rate: $${old.familyRate} → $${body.familyRate}`);
+
+  const dayMap: [keyof typeof settingsTable.$inferSelect, string][] = [
+    ["dayMonday", "Monday"], ["dayTuesday", "Tuesday"], ["dayWednesday", "Wednesday"],
+    ["dayThursday", "Thursday"], ["dayFriday", "Friday"], ["daySaturday", "Saturday"], ["daySunday", "Sunday"],
+  ];
+  for (const [col, name] of dayMap) {
+    const newVal = body.dayMultipliers?.[name];
+    if (newVal !== undefined && Math.abs((old[col] as number) - newVal) > 0.001) {
+      diffs.push(`${name} mult: ${(old[col] as number).toFixed(2)} → ${Number(newVal).toFixed(2)}`);
+    }
+  }
+
+  const oldSeasons = parseSeasons(old.seasonsJson);
+  const newSeasons = body.seasons ?? [];
+  if (JSON.stringify(oldSeasons) !== JSON.stringify(newSeasons)) {
+    diffs.push(`Seasons: ${newSeasons.length} configured`);
+  }
+
+  const oldHols = parseHolidays(old.holidaysJson);
+  const newHols = body.holidays ?? [];
+  if (JSON.stringify(oldHols) !== JSON.stringify(newHols)) {
+    diffs.push(`Holidays: ${newHols.length} configured`);
+  }
+
+  const oldOwners = parseOwners((old as any).ownersJson ?? "[]");
+  const newOwners = body.owners ?? [];
+  if (JSON.stringify(oldOwners) !== JSON.stringify(newOwners)) {
+    const added = newOwners.filter((o: any) => !oldOwners.find((e: any) => e.email === o.email));
+    const removed = oldOwners.filter((e: any) => !newOwners.find((o: any) => o.email === e.email));
+    if (added.length) diffs.push(`Owners added: ${added.map((o: any) => o.name || o.email).join(", ")}`);
+    if (removed.length) diffs.push(`Owners removed: ${removed.map((o: any) => o.name || o.email).join(", ")}`);
+  }
+
+  const oldByYear = parseHolidaysByYear(old.holidaysByYearJson ?? "{}");
+  const newByYear = body.holidaysByYear ?? {};
+  const yearKeys = new Set([...Object.keys(oldByYear), ...Object.keys(newByYear)]);
+  for (const yr of yearKeys) {
+    if (JSON.stringify(oldByYear[yr]) !== JSON.stringify(newByYear[yr])) {
+      if (!newByYear[yr]) diffs.push(`Removed holidays for ${yr}`);
+      else if (!oldByYear[yr]) diffs.push(`Added holidays for ${yr} (${newByYear[yr].length})`);
+      else diffs.push(`Updated holidays for ${yr}`);
+    }
+  }
+
+  if (diffs.length === 0) return "Settings saved (no changes)";
+  return `Settings changed: ${diffs.join("; ")}`;
+}
+
 router.get("/settings", async (req, res) => {
   try {
     const rows = await ensureDefaultSettings();
@@ -88,7 +142,11 @@ router.put("/settings", async (req, res) => {
   const body = parsed.data;
 
   try {
-    await ensureDefaultSettings();
+    const existing = await ensureDefaultSettings();
+    const oldRow = existing[0];
+
+    const diffDesc = buildSettingsDiff(oldRow, body);
+
     await db.update(settingsTable).set({
       basePrice: body.basePrice,
       familyRate: body.familyRate,
@@ -105,11 +163,9 @@ router.put("/settings", async (req, res) => {
       ownersJson: JSON.stringify(body.owners ?? []),
     } as any).where(eq(settingsTable.id, 1));
 
-    const yearKeys = Object.keys(body.holidaysByYear ?? {});
-    const changeDesc = `Settings saved: base $${body.basePrice}, family $${body.familyRate}, ${body.seasons.length} seasons, ${body.holidays.length} default holidays${yearKeys.length > 0 ? `, per-year overrides for ${yearKeys.join(", ")}` : ""}`;
     await db.insert(changeHistoryTable).values({
       changeType: "settings",
-      description: changeDesc,
+      description: diffDesc,
       metadata: JSON.stringify({ basePrice: body.basePrice, familyRate: body.familyRate }),
     });
 
@@ -121,5 +177,5 @@ router.put("/settings", async (req, res) => {
   }
 });
 
-export { ensureDefaultSettings, rowToApi };
+export { rowToApi };
 export default router;

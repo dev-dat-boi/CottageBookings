@@ -12,6 +12,7 @@ export interface RentalPatch {
   phone?: string | null;
   email?: string | null;
   extraDetails?: string | null;
+  agreedPrice?: number | null;
   sendOwnerEmail?: boolean | null;
   sendRenterEmail?: boolean | null;
 }

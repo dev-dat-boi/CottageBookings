@@ -14,6 +14,8 @@ tags:
   - name: bookings
   - name: history
   - name: rentals
+  - name: auth
+  - name: cottage
 paths:
   /healthz:
     get:
@@ -260,6 +262,197 @@ paths:
                   deleted:
                     type: integer
                 required: [deleted]
+
+  /rentals/{id}/approvals:
+    get:
+      operationId: getRentalApprovals
+      tags: [rentals]
+      summary: Get approval records for a rental
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of approvals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OwnerApproval"
+
+  /rentals/{id}/approvals/{ownerEmail}:
+    patch:
+      operationId: setRentalApproval
+      tags: [rentals]
+      summary: Approve or un-approve a rental on behalf of an owner
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: ownerEmail
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalPatch"
+      responses:
+        "200":
+          description: Updated rental with approvals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalEntry"
+
+  /auth/login:
+    post:
+      operationId: authLogin
+      tags: [auth]
+      summary: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: JWT token + user info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+
+  /auth/me:
+    get:
+      operationId: authMe
+      tags: [auth]
+      summary: Get current logged-in user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [auth]
+      summary: List all users (admin only)
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [auth]
+      summary: Create a new user (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "201":
+          description: Created user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    patch:
+      operationId: updateUser
+      tags: [auth]
+      summary: Update a user (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserPatch"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+    delete:
+      operationId: deleteUser
+      tags: [auth]
+      summary: Delete a user (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                required: [deleted]
+
+  /cottage-info:
+    get:
+      operationId: getCottageInfo
+      tags: [cottage]
+      summary: Get cottage information (title, description, photos)
+      responses:
+        "200":
+          description: Cottage info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CottageInfo"
+    put:
+      operationId: updateCottageInfo
+      tags: [cottage]
+      summary: Update cottage info (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CottageInfo"
+      responses:
+        "200":
+          description: Updated cottage info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CottageInfo"
 
   /history:
     get:
@@ -520,13 +713,18 @@ components:
           type: integer
         totalPrice:
           type: number
+        agreedPrice:
+          type: number
+          nullable: true
         rateType:
+          type: string
+        bookingType:
           type: string
         extraDetails:
           type: string
         status:
           type: string
-      required: [id, createdAt, renterName, phone, email, startDate, endDate, nights, totalPrice, rateType, extraDetails, status]
+      required: [id, createdAt, renterName, phone, email, startDate, endDate, nights, totalPrice, rateType, bookingType, extraDetails, status]
 
     RentalInput:
       type: object
@@ -546,6 +744,8 @@ components:
         totalPrice:
           type: number
         rateType:
+          type: string
+        bookingType:
           type: string
         extraDetails:
           type: string
@@ -569,12 +769,112 @@ components:
         extraDetails:
           type: string
           nullable: true
+        agreedPrice:
+          type: number
+          nullable: true
         sendOwnerEmail:
           type: boolean
           nullable: true
         sendRenterEmail:
           type: boolean
           nullable: true
+
+    OwnerApproval:
+      type: object
+      properties:
+        id:
+          type: integer
+        rentalId:
+          type: integer
+        ownerEmail:
+          type: string
+        ownerName:
+          type: string
+        approved:
+          type: boolean
+        approvedAt:
+          type: string
+          nullable: true
+      required: [id, rentalId, ownerEmail, ownerName, approved]
+
+    ApprovalPatch:
+      type: object
+      properties:
+        approved:
+          type: boolean
+      required: [approved]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+        createdAt:
+          type: string
+      required: [id, email, name, role, createdAt]
+
+    LoginBody:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required: [email, password]
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+      required: [token, user]
+
+    UserInput:
+      type: object
+      properties:
+        email:
+          type: string
+        name:
+          type: string
+        password:
+          type: string
+        role:
+          type: string
+      required: [email, name, password, role]
+
+    UserPatch:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        role:
+          type: string
+          nullable: true
+        password:
+          type: string
+          nullable: true
+
+    CottageInfo:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        photos:
+          type: array
+          items:
+            type: string
+      required: [title, description, photos]
 
     ChangeHistoryEntry:
       type: object

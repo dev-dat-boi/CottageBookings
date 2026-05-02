@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./approvalPatch";
 export * from "./bookingRequest";
 export * from "./bookingResult";
 export * from "./bulkDaysRequest";
@@ -13,17 +14,25 @@ export * from "./bulkDaysResult";
 export * from "./calendarEntry";
 export * from "./changeHistoryEntry";
 export * from "./clearHistory200";
+export * from "./cottageInfo";
 export * from "./dayMultipliers";
 export * from "./dayOverrideRequest";
 export * from "./deleteRental200";
+export * from "./deleteUser200";
 export * from "./getCalendarParams";
 export * from "./getHistoryParams";
 export * from "./healthStatus";
 export * from "./holiday";
+export * from "./loginBody";
+export * from "./loginResponse";
 export * from "./owner";
+export * from "./ownerApproval";
 export * from "./rentalEntry";
 export * from "./rentalInput";
 export * from "./rentalPatch";
 export * from "./season";
 export * from "./settings";
 export * from "./settingsHolidaysByYear";
+export * from "./user";
+export * from "./userInput";
+export * from "./userPatch";

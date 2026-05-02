@@ -15,5 +15,6 @@ export interface RentalInput {
   nights: number;
   totalPrice: number;
   rateType: string;
+  bookingType?: string;
   extraDetails?: string;
 }
