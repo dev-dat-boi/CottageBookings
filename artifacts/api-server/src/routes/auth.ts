@@ -1,6 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, settingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { signToken, extractToken, requireAdmin } from "../lib/auth";
 
@@ -14,6 +14,37 @@ function userToApi(row: typeof usersTable.$inferSelect) {
     role: row.role,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+function parseOwners(json: string): { name: string; email: string }[] {
+  try { const a = JSON.parse(json); return Array.isArray(a) ? a : []; } catch { return []; }
+}
+
+async function getSettingsRow() {
+  const rows = await db.select().from(settingsTable).where(eq(settingsTable.id, 1));
+  return rows[0] ?? null;
+}
+
+async function addOwnerToSettings(email: string, name: string) {
+  const row = await getSettingsRow();
+  if (!row) return;
+  const owners = parseOwners((row as any).ownersJson ?? "[]");
+  const emailLower = email.toLowerCase().trim();
+  if (!owners.find(o => o.email.toLowerCase() === emailLower)) {
+    owners.push({ name: name || "", email: emailLower });
+    await db.update(settingsTable).set({ ownersJson: JSON.stringify(owners) } as any).where(eq(settingsTable.id, 1));
+  }
+}
+
+async function removeOwnerFromSettings(email: string) {
+  const row = await getSettingsRow();
+  if (!row) return;
+  const owners = parseOwners((row as any).ownersJson ?? "[]");
+  const emailLower = email.toLowerCase().trim();
+  const updated = owners.filter(o => o.email.toLowerCase() !== emailLower);
+  if (updated.length !== owners.length) {
+    await db.update(settingsTable).set({ ownersJson: JSON.stringify(updated) } as any).where(eq(settingsTable.id, 1));
+  }
 }
 
 router.post("/auth/login", async (req, res) => {
@@ -85,7 +116,10 @@ router.post("/users", requireAdmin, async (req, res) => {
       passwordHash: hash,
       role,
     }).returning();
-    res.status(201).json(userToApi(inserted[0]));
+    const user = inserted[0];
+    // Sync: add this user as an owner too
+    await addOwnerToSettings(user.email, user.name);
+    res.status(201).json(userToApi(user));
   } catch (err: any) {
     if (err?.constraint?.includes("unique") || err?.message?.includes("unique")) {
       res.status(409).json({ error: "Email already exists" });
@@ -113,7 +147,20 @@ router.patch("/users/:id", requireAdmin, async (req, res) => {
     }
     const rows = await db.update(usersTable).set(updates).where(eq(usersTable.id, id)).returning();
     if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
-    res.json(userToApi(rows[0]));
+    const updated = rows[0];
+    // Sync name change to owners list if applicable
+    if (name != null) {
+      const settingsRow = await getSettingsRow();
+      if (settingsRow) {
+        const owners = parseOwners((settingsRow as any).ownersJson ?? "[]");
+        const idx = owners.findIndex(o => o.email.toLowerCase() === updated.email.toLowerCase());
+        if (idx >= 0) {
+          owners[idx].name = name;
+          await db.update(settingsTable).set({ ownersJson: JSON.stringify(owners) } as any).where(eq(settingsTable.id, 1));
+        }
+      }
+    }
+    res.json(userToApi(updated));
   } catch (err) {
     req.log.error({ err }, "Update user failed");
     res.status(500).json({ error: "Server error" });
@@ -129,7 +176,12 @@ router.delete("/users/:id", requireAdmin, async (req, res) => {
     return;
   }
   try {
+    const rows = await db.select().from(usersTable).where(eq(usersTable.id, id));
+    if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
+    const user = rows[0];
     await db.delete(usersTable).where(eq(usersTable.id, id));
+    // Sync: remove from owners list too
+    await removeOwnerFromSettings(user.email);
     res.json({ deleted: 1 });
   } catch (err) {
     req.log.error({ err }, "Delete user failed");

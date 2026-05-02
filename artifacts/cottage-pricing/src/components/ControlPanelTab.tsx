@@ -45,6 +45,7 @@ const ownerSchema = z.object({
 const settingsSchema = z.object({
   basePrice: z.coerce.number().min(0),
   familyRate: z.coerce.number().min(0),
+  familyRateCode: z.string().optional().default(""),
   seasons: z.array(seasonSchema),
   dayMultipliers: z.object({
     Monday: z.coerce.number(),
@@ -302,6 +303,7 @@ export function ControlPanelTab() {
       form.reset({
         basePrice: settings.basePrice,
         familyRate: settings.familyRate,
+        familyRateCode: (settings as any).familyRateCode ?? "",
         seasons: settings.seasons ?? [],
         dayMultipliers: settings.dayMultipliers,
         holidays: defaultHols,
@@ -314,9 +316,15 @@ export function ControlPanelTab() {
   const { fields: ownerFields, append: appendOwner, remove: removeOwner } = useFieldArray({ control: form.control, name: "owners" });
 
   const onSubmit = (data: FormValues) => {
-    updateMutation.mutate({ data: { ...data, owners: data.owners ?? [] } as any }, {
-      onSuccess: () => {
+    updateMutation.mutate({ data: { ...data, owners: data.owners ?? [], familyRateCode: data.familyRateCode ?? "" } as any }, {
+      onSuccess: (result: any) => {
         toast({ title: "Settings saved", description: "Pricing rules updated successfully." });
+        if (result?._newUserPasswords?.length > 0) {
+          toast({
+            title: "New user accounts created",
+            description: `Login password for new owners: cottage123 — they can change it in User Management.`,
+          });
+        }
         queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetCalendarQueryKey() });
       },
@@ -359,6 +367,18 @@ export function ControlPanelTab() {
                 />
                 <FormField control={form.control} name="familyRate"
                   render={({ field }) => (<FormItem className="w-40 sm:w-48"><FormLabel>Family Rate ($/night)</FormLabel><FormControl><Input type="number" step="0.01" {...field} className="text-lg font-medium" /></FormControl><FormMessage /></FormItem>)}
+                />
+                <FormField control={form.control} name="familyRateCode"
+                  render={({ field }) => (
+                    <FormItem className="w-48 sm:w-56">
+                      <FormLabel>Family Rate Access Code</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Leave blank for no code" {...field} value={field.value ?? ""} className="font-mono" />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground mt-1">Guests must enter this code to book at the family rate. Logged-in owners skip it.</p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </CardContent>
             </Card>

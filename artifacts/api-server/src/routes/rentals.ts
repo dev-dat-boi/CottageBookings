@@ -71,13 +71,13 @@ async function checkAndAutoConfirm(rentalId: number) {
 
   const ownerEmails = approvals.map(a => a.ownerEmail).filter(Boolean);
   if (ownerEmails.length > 0) {
-    const ical = buildIcalDataUrl(rental);
-    const html = buildRentalEmailHtml(rowToApi(rental), ical, false);
+    const ical = buildIcalDataUrl({ ...rental, agreedPrice: rental.agreedPrice ?? null });
+    const html = buildRentalEmailHtml({ ...rowToApi(rental), agreedPrice: rental.agreedPrice ?? null }, ical, false);
     sendEmail({ to: ownerEmails, subject: `Rental Approved - ${rental.renterName}`, html }).catch(() => {});
   }
   if (rental.email) {
-    const ical = buildIcalDataUrl(rental);
-    const html = buildRentalEmailHtml(rowToApi(rental), ical, true);
+    const ical = buildIcalDataUrl({ ...rental, agreedPrice: rental.agreedPrice ?? null });
+    const html = buildRentalEmailHtml({ ...rowToApi(rental), agreedPrice: rental.agreedPrice ?? null }, ical, true);
     sendEmail({ to: [rental.email], subject: `Your Cottage Rental is Confirmed — ${rental.startDate} to ${rental.endDate}`, html }).catch(() => {});
   }
 }
@@ -198,12 +198,12 @@ router.patch("/rentals/:id", async (req, res) => {
         const owners = await getOwners();
         const ownerEmails = owners.map(o => o.email).filter(Boolean);
         if (ownerEmails.length > 0) {
-          const html = buildRentalEmailHtml(apiRental, ical, false);
+          const html = buildRentalEmailHtml({ ...apiRental, agreedPrice: rental.agreedPrice ?? null }, ical, false);
           sendEmail({ to: ownerEmails, subject: `Rental Confirmed - ${rental.renterName}`, html }).catch(() => {});
         }
       }
       if (sendRenterEmail && rental.email) {
-        const html = buildRentalEmailHtml(apiRental, ical, true);
+        const html = buildRentalEmailHtml({ ...apiRental, agreedPrice: rental.agreedPrice ?? null }, ical, true);
         sendEmail({ to: [rental.email], subject: `Your Cottage Rental is Confirmed — ${rental.startDate} to ${rental.endDate}`, html }).catch(() => {});
       }
     }

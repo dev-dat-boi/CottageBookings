@@ -20,4 +20,6 @@ export interface Settings {
   /** Per-year holiday overrides keyed by year string (e.g. '2026') */
   holidaysByYear?: SettingsHolidaysByYear;
   owners?: Owner[];
+  /** Secret code required to access the family rate (empty means no code required) */
+  familyRateCode?: string;
 }

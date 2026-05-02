@@ -23,7 +23,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { useAdminLock } from "@/contexts/AdminLockContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 const DAY_OPTIONS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -50,32 +50,29 @@ function DropdownCell({ value, options, onSelect, isSynced, isOverridden, canRes
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
+    if (!open) return;
+    function handler(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
-    if (open) document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const colorClass = disabled
-    ? "opacity-50 cursor-not-allowed border border-transparent"
-    : isOverridden
-    ? "bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-700"
+  const baseClass = isOverridden
+    ? "bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700"
     : isSynced
-    ? "bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-700"
-    : "hover:bg-muted/60 border border-transparent hover:border-border/40";
+    ? "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800"
+    : "bg-transparent border-transparent";
 
   return (
     <div ref={ref} className="relative inline-block">
       <button
         type="button"
         onClick={() => !disabled && setOpen(o => !o)}
-        disabled={disabled}
-        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-sm transition-colors ${disabled ? "cursor-not-allowed" : "cursor-pointer"} ${colorClass}`}
-        title={isSynced ? "Auto-assigned by date range rule" : undefined}
+        className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border text-sm transition-colors ${baseClass} ${disabled ? "cursor-default opacity-70" : "hover:bg-muted/50 cursor-pointer"}`}
       >
         <span>{value || placeholder || "—"}</span>
-        {!disabled && <ChevronDown className="w-3 h-3 opacity-50" />}
+        {!disabled && <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />}
       </button>
 
       {open && !disabled && (
@@ -108,7 +105,8 @@ function DropdownCell({ value, options, onSelect, isSynced, isOverridden, canRes
 export function CalendarTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { isLocked } = useAdminLock();
+  const { isAdmin } = useAuth();
+  const isLocked = !isAdmin;
 
   const curYear = new Date().getFullYear();
   const [fromYear, setFromYear] = useState(curYear);
@@ -168,21 +166,17 @@ export function CalendarTab() {
       const isNone = value === null || value === "";
 
       if (isNone) {
-        // Already suppressed — no-op
         if (entry.holidayIsOverridden && entry.holiday === "") return;
 
         if (entry.holidayIsOverridden && entry.holiday !== "") {
-          // Remove a real holiday override
           if (!entry.seasonIsOverridden && !entry.dayIsOverridden) {
             removeOverrideMutation.mutate({ date: entry.date }, mutOpts);
           } else {
             setOverrideMutation.mutate({ date: entry.date, data: { holidayOverride: null, seasonOverride: keepSeason, dayOverride: keepDay } }, mutOpts);
           }
         } else if (!entry.holidayIsOverridden && entry.holiday !== "") {
-          // Suppress natural/synced holiday with "" sentinel (no amber highlight)
           setOverrideMutation.mutate({ date: entry.date, data: { holidayOverride: "", seasonOverride: keepSeason, dayOverride: keepDay } }, mutOpts);
         }
-        // else: not overridden, no holiday → do nothing
       } else {
         setOverrideMutation.mutate({ date: entry.date, data: { holidayOverride: value, seasonOverride: keepSeason, dayOverride: keepDay } }, mutOpts);
       }
@@ -190,7 +184,6 @@ export function CalendarTab() {
   }
 
   function tryOverride(entry: CalendarEntry, field: "season" | "holiday" | "day", value: string | null) {
-    // Check for cascade: if this is the first calendar entry and changing day-of-week
     if (field === "day" && value !== null && calendar && entry.date === calendar[0].date) {
       setPendingCascade({ entry, day: value });
       return;

@@ -600,6 +600,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Owner"
+        familyRateCode:
+          type: string
+          description: "Secret code required to access the family rate (empty means no code required)"
       required: [basePrice, familyRate, seasons, dayMultipliers, holidays]
 
     DayOverrideRequest:

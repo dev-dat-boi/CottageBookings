@@ -291,6 +291,8 @@ export function BookingsTab() {
         onConfirm={handleConfirmRate}
         standardRate={settings?.basePrice ?? 300}
         familyRate={settings?.familyRate ?? 200}
+        familyRateCode={(settings as any)?.familyRateCode ?? ""}
+        isLoggedIn={isLoggedIn}
       />
 
       {showBookDialog && dateRange?.from && dateRange?.to && (
@@ -466,18 +468,45 @@ function BookDialog({
   );
 }
 
-function RateDialog({ open, onClose, onConfirm, standardRate, familyRate }: {
+function RateDialog({ open, onClose, onConfirm, standardRate, familyRate, familyRateCode, isLoggedIn }: {
   open: boolean;
   onClose: () => void;
   onConfirm: (rateType: RateType, includeMultipliers: boolean) => void;
   standardRate: number;
   familyRate: number;
+  familyRateCode: string;
+  isLoggedIn: boolean;
 }) {
   const [selected, setSelected] = useState<RateType>("standard");
   const [withMult, setWithMult] = useState(false);
+  const [codeInput, setCodeInput] = useState("");
+  const [codeError, setCodeError] = useState(false);
+  const [codeUnlocked, setCodeUnlocked] = useState(false);
+
+  // Owners (logged-in users) bypass the code entirely
+  const requiresCode = !isLoggedIn && familyRateCode.trim() !== "";
+  const familyVisible = isLoggedIn || codeUnlocked || !requiresCode;
+
+  function handleCodeCheck() {
+    if (codeInput.trim() === familyRateCode.trim()) {
+      setCodeUnlocked(true);
+      setCodeError(false);
+    } else {
+      setCodeError(true);
+    }
+  }
+
+  function handleClose() {
+    setCodeInput("");
+    setCodeError(false);
+    setCodeUnlocked(false);
+    setSelected("standard");
+    setWithMult(false);
+    onClose();
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Select Rate Type</DialogTitle>
@@ -492,15 +521,36 @@ function RateDialog({ open, onClose, onConfirm, standardRate, familyRate }: {
             <div className="font-semibold text-foreground">Standard Rate</div>
             <div className="text-sm text-muted-foreground mt-0.5">${standardRate}/night base — all multipliers applied</div>
           </button>
-          <button
-            type="button"
-            onClick={() => setSelected("family")}
-            className={`w-full text-left p-4 rounded-xl border-2 transition-colors ${selected === "family" ? "border-primary bg-primary/5" : "border-border/40 hover:border-border"}`}
-          >
-            <div className="font-semibold text-foreground">Family Rate</div>
-            <div className="text-sm text-muted-foreground mt-0.5">${familyRate}/night base rate</div>
-          </button>
-          {selected === "family" && (
+
+          {/* Family rate — hidden behind code for guests */}
+          {requiresCode && !codeUnlocked ? (
+            <div className="border-2 border-border/40 rounded-xl p-4 space-y-3">
+              <div className="font-semibold text-foreground text-sm">Family Rate</div>
+              <p className="text-xs text-muted-foreground">Enter the family rate access code to unlock this option.</p>
+              <div className="flex gap-2">
+                <Input
+                  value={codeInput}
+                  onChange={e => { setCodeInput(e.target.value); setCodeError(false); }}
+                  placeholder="Access code"
+                  className={`font-mono flex-1 ${codeError ? "border-destructive" : ""}`}
+                  onKeyDown={e => e.key === "Enter" && handleCodeCheck()}
+                />
+                <Button type="button" size="sm" variant="outline" onClick={handleCodeCheck}>Unlock</Button>
+              </div>
+              {codeError && <p className="text-xs text-destructive">Incorrect code. Please try again.</p>}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSelected("family")}
+              className={`w-full text-left p-4 rounded-xl border-2 transition-colors ${selected === "family" ? "border-primary bg-primary/5" : "border-border/40 hover:border-border"}`}
+            >
+              <div className="font-semibold text-foreground">Family Rate</div>
+              <div className="text-sm text-muted-foreground mt-0.5">${familyRate}/night base rate</div>
+            </button>
+          )}
+
+          {selected === "family" && familyVisible && (
             <div className="ml-2 pl-3 border-l-2 border-primary/30 space-y-2">
               <p className="text-sm font-medium text-foreground">Apply multipliers?</p>
               <div className="flex gap-3">
@@ -523,7 +573,7 @@ function RateDialog({ open, onClose, onConfirm, standardRate, familyRate }: {
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={handleClose}>Cancel</Button>
           <Button onClick={() => onConfirm(selected, selected === "family" ? withMult : true)}>
             Calculate
           </Button>

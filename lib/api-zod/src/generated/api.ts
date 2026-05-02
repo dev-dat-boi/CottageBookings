@@ -67,6 +67,12 @@ export const GetSettingsResponse = zod.object({
       }),
     )
     .optional(),
+  familyRateCode: zod
+    .string()
+    .optional()
+    .describe(
+      "Secret code required to access the family rate (empty means no code required)",
+    ),
 });
 
 /**
@@ -122,6 +128,12 @@ export const UpdateSettingsBody = zod.object({
       }),
     )
     .optional(),
+  familyRateCode: zod
+    .string()
+    .optional()
+    .describe(
+      "Secret code required to access the family rate (empty means no code required)",
+    ),
 });
 
 export const UpdateSettingsResponse = zod.object({
@@ -174,6 +186,12 @@ export const UpdateSettingsResponse = zod.object({
       }),
     )
     .optional(),
+  familyRateCode: zod
+    .string()
+    .optional()
+    .describe(
+      "Secret code required to access the family rate (empty means no code required)",
+    ),
 });
 
 /**

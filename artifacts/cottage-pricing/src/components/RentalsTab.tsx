@@ -101,7 +101,9 @@ function buildGoogleCalendarUrl(rental: RentalEntry): string {
   const title = encodeURIComponent(`Cottage Rental - ${rental.renterName}`);
   const start = rental.startDate.replace(/-/g, "");
   const end = rental.endDate.replace(/-/g, "");
-  const details = encodeURIComponent(`${rental.nights} nights · $${rental.totalPrice.toFixed(2)} · ${rental.phone} · ${rental.email}${rental.extraDetails ? "\n" + rental.extraDetails : ""}`);
+  const priceParts = [`Estimated: $${rental.totalPrice.toFixed(2)}`];
+  if (rental.agreedPrice != null) priceParts.push(`Agreed: $${rental.agreedPrice.toFixed(2)}`);
+  const details = encodeURIComponent(`${rental.nights} nights · ${priceParts.join(" | ")} · ${rental.phone} · ${rental.email}${rental.extraDetails ? "\n" + rental.extraDetails : ""}`);
   return `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}`;
 }
 
@@ -250,7 +252,7 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin }: {
           </div>
         )}
 
-        {/* Owner Approvals */}
+        {/* Owner Approvals — admin-only */}
         {!editing && isAdmin && rental.status === "pending_approval" && approvals && approvals.length > 0 && (
           <div className="border border-border/40 rounded-lg p-3 space-y-2 bg-orange-50/40 dark:bg-orange-950/10">
             <p className="text-xs font-semibold text-foreground flex items-center gap-1.5"><CheckCheck className="w-3.5 h-3.5 text-orange-500" /> Owner Approvals</p>
@@ -279,12 +281,15 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin }: {
         <DialogFooter className="flex-wrap gap-2 sm:flex-row">
           {!editing ? (
             <>
-              {isAdmin && <Button variant="outline" size="sm" onClick={() => setEditing(true)}>Edit</Button>}
+              {/* Edit is available to all logged-in users */}
+              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>Edit</Button>
+              {/* Confirm (force-approve) is admin-only */}
               {canConfirm && isAdmin && (
                 <Button size="sm" onClick={() => { onClose(); onConfirmClick(rental); }} className="bg-green-600 hover:bg-green-700 text-white">
                   <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Confirm
                 </Button>
               )}
+              {/* Delete is admin-only */}
               {isAdmin && (
                 <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => setShowDeleteConfirm(true)}>
                   <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete

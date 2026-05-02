@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { db, settingsTable, changeHistoryTable } from "@workspace/db";
+import bcrypt from "bcryptjs";
+import { db, settingsTable, changeHistoryTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { UpdateSettingsBody } from "@workspace/api-zod";
 import { DEFAULT_SEASONS, DEFAULT_HOLIDAYS, parseSeasons, parseHolidays } from "../lib/pricing";
@@ -27,6 +28,7 @@ function rowToApi(row: typeof settingsTable.$inferSelect) {
   return {
     basePrice: row.basePrice,
     familyRate: row.familyRate,
+    familyRateCode: (row as any).familyRateCode ?? "",
     seasons,
     dayMultipliers: {
       Monday: row.dayMonday,
@@ -123,6 +125,42 @@ function buildSettingsDiff(old: typeof settingsTable.$inferSelect, body: any): s
   return `Settings changed: ${diffs.join("; ")}`;
 }
 
+/** Sync owners list to users table: create viewer users for new owners, remove users for deleted owners */
+async function syncOwnersToUsers(oldOwners: { name: string; email: string }[], newOwners: { name: string; email: string }[]): Promise<string[]> {
+  const added = newOwners.filter(o => !oldOwners.find(e => e.email.toLowerCase() === o.email.toLowerCase()));
+  const removed = oldOwners.filter(e => !newOwners.find(o => o.email.toLowerCase() === e.email.toLowerCase()));
+  const createdPasswords: string[] = [];
+
+  const DEFAULT_PASSWORD = "cottage123";
+
+  for (const owner of added) {
+    const emailLower = owner.email.toLowerCase().trim();
+    const existing = await db.select().from(usersTable).where(eq(usersTable.email, emailLower));
+    if (existing.length === 0) {
+      const hash = await bcrypt.hash(DEFAULT_PASSWORD, 10);
+      await db.insert(usersTable).values({
+        email: emailLower,
+        name: owner.name || "",
+        passwordHash: hash,
+        role: "viewer",
+      }).onConflictDoNothing();
+      createdPasswords.push(`${owner.name || owner.email} (${emailLower}): ${DEFAULT_PASSWORD}`);
+    } else {
+      // Update name if it changed
+      if (owner.name && existing[0].name !== owner.name) {
+        await db.update(usersTable).set({ name: owner.name }).where(eq(usersTable.email, emailLower));
+      }
+    }
+  }
+
+  for (const owner of removed) {
+    const emailLower = owner.email.toLowerCase().trim();
+    await db.delete(usersTable).where(eq(usersTable.email, emailLower));
+  }
+
+  return createdPasswords;
+}
+
 router.get("/settings", async (req, res) => {
   try {
     const rows = await ensureDefaultSettings();
@@ -144,6 +182,8 @@ router.put("/settings", async (req, res) => {
   try {
     const existing = await ensureDefaultSettings();
     const oldRow = existing[0];
+    const oldOwners = parseOwners((oldRow as any).ownersJson ?? "[]");
+    const newOwners: { name: string; email: string }[] = (body as any).owners ?? [];
 
     const diffDesc = buildSettingsDiff(oldRow, body);
 
@@ -159,9 +199,12 @@ router.put("/settings", async (req, res) => {
       daySunday: body.dayMultipliers.Sunday,
       seasonsJson: JSON.stringify(body.seasons),
       holidaysJson: JSON.stringify(body.holidays),
-      holidaysByYearJson: JSON.stringify(body.holidaysByYear ?? {}),
-      ownersJson: JSON.stringify(body.owners ?? []),
+      holidaysByYearJson: JSON.stringify((body as any).holidaysByYear ?? {}),
+      ownersJson: JSON.stringify(newOwners),
+      familyRateCode: (body as any).familyRateCode ?? "",
     } as any).where(eq(settingsTable.id, 1));
+
+    const createdPasswords = await syncOwnersToUsers(oldOwners, newOwners);
 
     await db.insert(changeHistoryTable).values({
       changeType: "settings",
@@ -170,7 +213,11 @@ router.put("/settings", async (req, res) => {
     });
 
     const rows = await db.select().from(settingsTable).where(eq(settingsTable.id, 1));
-    res.json(rowToApi(rows[0]));
+    const result: any = rowToApi(rows[0]);
+    if (createdPasswords.length > 0) {
+      result._newUserPasswords = createdPasswords;
+    }
+    res.json(result);
   } catch (err) {
     req.log.error({ err }, "Failed to update settings");
     res.status(500).json({ error: "Failed to update settings" });
