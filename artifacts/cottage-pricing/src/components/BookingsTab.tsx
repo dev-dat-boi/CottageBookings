@@ -58,6 +58,8 @@ export function BookingsTab() {
     return [past, ...booked];
   }, [bookedDates]);
 
+  const bookedDateObjects = useMemo(() => [...bookedDates].map(d => parseISO(d)), [bookedDates]);
+
   const result = calculateMutation.data;
 
   const handleCalculateClick = () => {
@@ -164,11 +166,13 @@ export function BookingsTab() {
               selected={dateRange}
               onSelect={setDateRange}
               disabled={disabledDays}
+              modifiers={{ booked: bookedDateObjects }}
+              modifiersClassNames={{ booked: "line-through decoration-red-400/70 text-red-500/60" }}
               className="border border-border/40 p-4 rounded-xl bg-card shadow-sm"
               classNames={{
                 day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
                 day_today: "font-bold text-accent",
-                day_disabled: "line-through opacity-40 cursor-not-allowed",
+                day_disabled: "opacity-40 cursor-not-allowed",
               }}
             />
             <Button

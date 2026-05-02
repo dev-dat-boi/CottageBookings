@@ -184,6 +184,20 @@ export interface ApprovalPatch {
   approved: boolean;
 }
 
+export interface BookingUserConfirmation {
+  id: number;
+  rentalId: number;
+  userId: number;
+  userName: string;
+  userEmail: string;
+  confirmed: boolean;
+  confirmedAt?: string | null;
+}
+
+export interface UserConfirmationPatch {
+  confirmed: boolean;
+}
+
 export interface User {
   id: number;
   email: string;

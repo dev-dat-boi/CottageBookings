@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
-import { db, rentalsTable, settingsTable, ownerApprovalsTable } from "@workspace/db";
+import { db, rentalsTable, settingsTable, ownerApprovalsTable, bookingConfirmationsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { CreateRentalBody, UpdateRentalBody } from "@workspace/api-zod";
 import { sendEmail, buildIcalDataUrl, buildRentalEmailHtml } from "../lib/email";
 import { ensureDefaultSettings } from "./settings";
-import { extractToken } from "../lib/auth";
+import { extractToken, requireAuth } from "../lib/auth";
 
 const router = Router();
 
@@ -36,6 +36,29 @@ function rowToApi(row: typeof rentalsTable.$inferSelect) {
     status: row.status,
     confirmationToken: row.confirmationToken ?? null,
   };
+}
+
+function confirmationRowToApi(row: typeof bookingConfirmationsTable.$inferSelect) {
+  return {
+    id: row.id,
+    rentalId: row.rentalId,
+    userId: row.userId,
+    userName: row.userName,
+    userEmail: row.userEmail,
+    confirmed: row.confirmed,
+    confirmedAt: row.confirmedAt?.toISOString() ?? null,
+  };
+}
+
+async function seedConfirmationsForRental(rentalId: number) {
+  try {
+    const users = await db.select().from(usersTable);
+    for (const u of users) {
+      await db.insert(bookingConfirmationsTable)
+        .values({ rentalId, userId: u.id, userName: u.name, userEmail: u.email, confirmed: false })
+        .onConflictDoNothing();
+    }
+  } catch {}
 }
 
 function rowToPublic(row: typeof rentalsTable.$inferSelect) {
@@ -130,6 +153,8 @@ router.post("/rentals", async (req, res) => {
       }
     }
 
+    await seedConfirmationsForRental(rental.id);
+
     res.status(201).json(rowToApi(rental));
   } catch (err) {
     req.log.error({ err }, "Failed to create rental");
@@ -218,6 +243,7 @@ router.delete("/rentals/:id", async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
+    await db.delete(bookingConfirmationsTable).where(eq(bookingConfirmationsTable.rentalId, id));
     await db.delete(ownerApprovalsTable).where(eq(ownerApprovalsTable.rentalId, id));
     await db.delete(rentalsTable).where(eq(rentalsTable.id, id));
     res.json({ deleted: 1 });
@@ -264,6 +290,61 @@ router.patch("/rentals/:id/approvals/:ownerEmail", async (req, res) => {
     res.json(rowToApi(rental[0]));
   } catch (err) {
     req.log.error({ err }, "Failed to set approval");
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.get("/rentals/:id/confirmations", requireAuth, async (req, res) => {
+  const rentalId = parseInt(req.params.id as string);
+  if (isNaN(rentalId)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const user = (req as any).user;
+  try {
+    const rows = await db.select().from(bookingConfirmationsTable)
+      .where(eq(bookingConfirmationsTable.rentalId, rentalId));
+    if (user.role === "admin") {
+      res.json(rows.map(confirmationRowToApi));
+    } else {
+      res.json(rows.filter(r => r.userId === user.userId).map(confirmationRowToApi));
+    }
+  } catch (err) {
+    req.log.error({ err }, "Failed to get confirmations");
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.patch("/rentals/:id/confirmations/:userId", requireAuth, async (req, res) => {
+  const rentalId = parseInt(req.params.id as string);
+  const targetUserId = parseInt(req.params.userId as string);
+  if (isNaN(rentalId) || isNaN(targetUserId)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const user = (req as any).user;
+  if (user.role !== "admin" && user.userId !== targetUserId) {
+    res.status(403).json({ error: "You can only update your own confirmation" });
+    return;
+  }
+  const { confirmed } = req.body;
+  if (typeof confirmed !== "boolean") { res.status(400).json({ error: "'confirmed' boolean required" }); return; }
+  try {
+    const existing = await db.select().from(bookingConfirmationsTable)
+      .where(and(eq(bookingConfirmationsTable.rentalId, rentalId), eq(bookingConfirmationsTable.userId, targetUserId)));
+    let result;
+    if (existing.length === 0) {
+      const u = await db.select().from(usersTable).where(eq(usersTable.id, targetUserId));
+      if (u.length === 0) { res.status(404).json({ error: "User not found" }); return; }
+      const inserted = await db.insert(bookingConfirmationsTable).values({
+        rentalId, userId: targetUserId, userName: u[0].name, userEmail: u[0].email,
+        confirmed, confirmedAt: confirmed ? new Date() : null,
+      }).returning();
+      result = inserted[0];
+    } else {
+      const updated = await db.update(bookingConfirmationsTable)
+        .set({ confirmed, confirmedAt: confirmed ? new Date() : null })
+        .where(and(eq(bookingConfirmationsTable.rentalId, rentalId), eq(bookingConfirmationsTable.userId, targetUserId)))
+        .returning();
+      result = updated[0];
+    }
+    res.json(confirmationRowToApi(result));
+  } catch (err) {
+    req.log.error({ err }, "Failed to set confirmation");
     res.status(500).json({ error: "Server error" });
   }
 });

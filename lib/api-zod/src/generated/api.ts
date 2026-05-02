@@ -496,6 +496,48 @@ export const GetRentalApprovalsResponse = zod.array(
 );
 
 /**
+ * @summary Get user confirmation records for a rental (auth required)
+ */
+export const GetBookingConfirmationsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetBookingConfirmationsResponseItem = zod.object({
+  id: zod.number(),
+  rentalId: zod.number(),
+  userId: zod.number(),
+  userName: zod.string(),
+  userEmail: zod.string(),
+  confirmed: zod.boolean(),
+  confirmedAt: zod.string().nullish(),
+});
+export const GetBookingConfirmationsResponse = zod.array(
+  GetBookingConfirmationsResponseItem,
+);
+
+/**
+ * @summary Set confirmed status for a user on a rental (admin can set any, others only own)
+ */
+export const SetBookingConfirmationParams = zod.object({
+  id: zod.coerce.number(),
+  userId: zod.coerce.number(),
+});
+
+export const SetBookingConfirmationBody = zod.object({
+  confirmed: zod.boolean(),
+});
+
+export const SetBookingConfirmationResponse = zod.object({
+  id: zod.number(),
+  rentalId: zod.number(),
+  userId: zod.number(),
+  userName: zod.string(),
+  userEmail: zod.string(),
+  confirmed: zod.boolean(),
+  confirmedAt: zod.string().nullish(),
+});
+
+/**
  * @summary Approve or un-approve a rental on behalf of an owner
  */
 export const SetRentalApprovalParams = zod.object({

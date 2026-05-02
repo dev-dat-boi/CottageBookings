@@ -305,6 +305,57 @@ paths:
                 items:
                   $ref: "#/components/schemas/OwnerApproval"
 
+  /rentals/{id}/confirmations:
+    get:
+      operationId: getBookingConfirmations
+      tags: [rentals]
+      summary: Get user confirmation records for a rental (auth required)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of user confirmations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BookingUserConfirmation"
+
+  /rentals/{id}/confirmations/{userId}:
+    patch:
+      operationId: setBookingConfirmation
+      tags: [rentals]
+      summary: Set confirmed status for a user on a rental (admin can set any, others only own)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserConfirmationPatch"
+      responses:
+        "200":
+          description: Updated confirmation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingUserConfirmation"
+
   /rentals/{id}/approvals/{ownerEmail}:
     patch:
       operationId: setRentalApproval
@@ -951,6 +1002,33 @@ components:
         approved:
           type: boolean
       required: [approved]
+
+    BookingUserConfirmation:
+      type: object
+      properties:
+        id:
+          type: integer
+        rentalId:
+          type: integer
+        userId:
+          type: integer
+        userName:
+          type: string
+        userEmail:
+          type: string
+        confirmed:
+          type: boolean
+        confirmedAt:
+          type: string
+          nullable: true
+      required: [id, rentalId, userId, userName, userEmail, confirmed]
+
+    UserConfirmationPatch:
+      type: object
+      properties:
+        confirmed:
+          type: boolean
+      required: [confirmed]
 
     User:
       type: object

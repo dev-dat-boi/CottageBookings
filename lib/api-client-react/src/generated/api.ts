@@ -21,6 +21,7 @@ import type {
   BookingConfirmation,
   BookingRequest,
   BookingResult,
+  BookingUserConfirmation,
   BulkDaysRequest,
   BulkDaysResult,
   CalendarEntry,
@@ -48,6 +49,7 @@ import type {
   ResetPasswordRequest,
   Settings,
   User,
+  UserConfirmationPatch,
   UserInput,
   UserPatch,
 } from "./api.schemas";
@@ -1323,6 +1325,190 @@ export function useGetRentalApprovals<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get user confirmation records for a rental (auth required)
+ */
+export const getGetBookingConfirmationsUrl = (id: number) => {
+  return `/api/rentals/${id}/confirmations`;
+};
+
+export const getBookingConfirmations = async (
+  id: number,
+  options?: RequestInit,
+): Promise<BookingUserConfirmation[]> => {
+  return customFetch<BookingUserConfirmation[]>(
+    getGetBookingConfirmationsUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetBookingConfirmationsQueryKey = (id: number) => {
+  return [`/api/rentals/${id}/confirmations`] as const;
+};
+
+export const getGetBookingConfirmationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBookingConfirmations>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBookingConfirmations>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetBookingConfirmationsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getBookingConfirmations>>
+  > = ({ signal }) =>
+    getBookingConfirmations(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBookingConfirmations>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBookingConfirmationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBookingConfirmations>>
+>;
+export type GetBookingConfirmationsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get user confirmation records for a rental (auth required)
+ */
+
+export function useGetBookingConfirmations<
+  TData = Awaited<ReturnType<typeof getBookingConfirmations>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBookingConfirmations>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBookingConfirmationsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Set confirmed status for a user on a rental (admin can set any, others only own)
+ */
+export const getSetBookingConfirmationUrl = (id: number, userId: number) => {
+  return `/api/rentals/${id}/confirmations/${userId}`;
+};
+
+export const setBookingConfirmation = async (
+  id: number,
+  userId: number,
+  userConfirmationPatch: UserConfirmationPatch,
+  options?: RequestInit,
+): Promise<BookingUserConfirmation> => {
+  return customFetch<BookingUserConfirmation>(
+    getSetBookingConfirmationUrl(id, userId),
+    {
+      ...options,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(userConfirmationPatch),
+    },
+  );
+};
+
+export const getSetBookingConfirmationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setBookingConfirmation>>,
+    TError,
+    { id: number; userId: number; data: BodyType<UserConfirmationPatch> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setBookingConfirmation>>,
+  TError,
+  { id: number; userId: number; data: BodyType<UserConfirmationPatch> },
+  TContext
+> => {
+  const mutationKey = ["setBookingConfirmation"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setBookingConfirmation>>,
+    { id: number; userId: number; data: BodyType<UserConfirmationPatch> }
+  > = (props) => {
+    const { id, userId, data } = props ?? {};
+
+    return setBookingConfirmation(id, userId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetBookingConfirmationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setBookingConfirmation>>
+>;
+export type SetBookingConfirmationMutationBody =
+  BodyType<UserConfirmationPatch>;
+export type SetBookingConfirmationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Set confirmed status for a user on a rental (admin can set any, others only own)
+ */
+export const useSetBookingConfirmation = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setBookingConfirmation>>,
+    TError,
+    { id: number; userId: number; data: BodyType<UserConfirmationPatch> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setBookingConfirmation>>,
+  TError,
+  { id: number; userId: number; data: BodyType<UserConfirmationPatch> },
+  TContext
+> => {
+  return useMutation(getSetBookingConfirmationMutationOptions(options));
+};
 
 /**
  * @summary Approve or un-approve a rental on behalf of an owner

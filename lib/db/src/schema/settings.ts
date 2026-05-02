@@ -81,6 +81,16 @@ export const cottageInfoTable = pgTable("cottage_info", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const bookingConfirmationsTable = pgTable("booking_confirmations", {
+  id: serial("id").primaryKey(),
+  rentalId: integer("rental_id").notNull(),
+  userId: integer("user_id").notNull(),
+  userName: text("user_name").notNull().default(''),
+  userEmail: text("user_email").notNull().default(''),
+  confirmed: boolean("confirmed").notNull().default(false),
+  confirmedAt: timestamp("confirmed_at"),
+});
+
 export const insertSettingsSchema = createInsertSchema(settingsTable);
 export const insertDayOverrideSchema = createInsertSchema(dayOverridesTable);
 export const insertChangeHistorySchema = createInsertSchema(changeHistoryTable).omit({ id: true, createdAt: true });
@@ -100,3 +110,4 @@ export type Rental = typeof rentalsTable.$inferSelect;
 export type User = typeof usersTable.$inferSelect;
 export type CottageInfo = typeof cottageInfoTable.$inferSelect;
 export type OwnerApproval = typeof ownerApprovalsTable.$inferSelect;
+export type BookingConfirmationRow = typeof bookingConfirmationsTable.$inferSelect;

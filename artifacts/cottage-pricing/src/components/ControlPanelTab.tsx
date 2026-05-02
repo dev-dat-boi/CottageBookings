@@ -133,11 +133,16 @@ function HolidaysByYearSection({ control, form, disabled, defaultHolidays }: {
   const holidaysByYear: Record<string, Holiday[]> = form.watch("holidaysByYear") ?? {};
   const [showAddYear, setShowAddYear] = useState(false);
   const [newYear, setNewYear] = useState(String(currentYear));
+  const allYears = Object.keys(holidaysByYear).sort();
+  const [activeYear, setActiveYear] = useState<string>(() => allYears[0] ?? String(currentYear));
+
+  const displayYear = allYears.includes(activeYear) ? activeYear : (allYears[0] ?? "");
 
   function addYear() {
     if (!newYear || holidaysByYear[newYear]) return;
     const updated = { ...holidaysByYear, [newYear]: defaultHolidays.map(h => ({ ...h })) };
     form.setValue("holidaysByYear", updated, { shouldDirty: true });
+    setActiveYear(newYear);
     setShowAddYear(false);
   }
 
@@ -145,67 +150,78 @@ function HolidaysByYearSection({ control, form, disabled, defaultHolidays }: {
     const updated = { ...holidaysByYear };
     delete updated[yr];
     form.setValue("holidaysByYear", updated, { shouldDirty: true });
+    const remaining = Object.keys(updated).sort();
+    setActiveYear(remaining[0] ?? String(currentYear));
   }
-
-  const allYears = Object.keys(holidaysByYear).sort();
 
   return (
     <Card className="border-border/40 shadow-sm md:col-span-2">
-      <CardHeader className="bg-muted/30 border-b border-border/40">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <CalendarDays className="w-4 h-4" /> Holidays
-            </CardTitle>
-            <CardDescription className="mt-0.5">
-              Holidays are applied per year — only to dates within that calendar year.
-            </CardDescription>
-          </div>
+      <CardHeader className="bg-muted/30 border-b border-border/40 space-y-3">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <CalendarDays className="w-4 h-4" /> Holidays by Year
+          </CardTitle>
+          <CardDescription className="mt-0.5">
+            Holidays apply per year. Click a year tab to view or edit.
+          </CardDescription>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {allYears.map(yr => (
+            <button
+              key={yr}
+              type="button"
+              onClick={() => setActiveYear(yr)}
+              className={`px-3 py-1 text-sm font-medium rounded-full border transition-colors ${
+                displayYear === yr
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  : "bg-card text-muted-foreground border-border/40 hover:border-border hover:text-foreground"
+              }`}
+            >
+              {yr}
+            </button>
+          ))}
           {!disabled && (
-            <Button type="button" variant="outline" size="sm" onClick={() => setShowAddYear(true)}>
-              <Plus className="w-4 h-4 mr-1" /> Add Year
-            </Button>
+            <button
+              type="button"
+              onClick={() => setShowAddYear(true)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-sm font-medium rounded-full border border-dashed border-border hover:border-primary hover:text-primary text-muted-foreground transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Year
+            </button>
+          )}
+          {allYears.length === 0 && (
+            <span className="text-sm text-muted-foreground italic">No years added yet.</span>
           )}
         </div>
       </CardHeader>
 
-      {allYears.length === 0 ? (
-        <CardContent className="py-8 text-center text-muted-foreground text-sm">
-          No holidays configured. Click "Add Year" to add holidays for a specific year.
+      {allYears.length > 0 && displayYear ? (
+        <CardContent className="p-4 sm:p-6 space-y-4">
+          <YearHolidayEditor
+            key={displayYear}
+            yearKey={displayYear}
+            control={control}
+            form={form}
+            disabled={disabled}
+          />
+          {!disabled && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => removeYear(displayYear)}
+              className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Remove {displayYear}
+            </Button>
+          )}
         </CardContent>
       ) : (
-        <CardContent className="p-0 divide-y divide-border/40">
-          {allYears.map(yr => (
-            <div key={yr} className="p-4 sm:p-6 space-y-4">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="w-4 h-4 text-primary" />
-                <span className="font-semibold text-foreground">{yr}</span>
-              </div>
-              <YearHolidayEditor
-                yearKey={yr}
-                control={control}
-                form={form}
-                disabled={disabled}
-              />
-              {!disabled && (
-                <div className="pt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => removeYear(yr)}
-                    className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Erase {yr}
-                  </Button>
-                </div>
-              )}
-            </div>
-          ))}
+        <CardContent className="py-8 text-center text-muted-foreground text-sm">
+          {disabled ? "No holidays configured." : 'Click "Add Year" to configure holidays for a specific year.'}
         </CardContent>
       )}
 
-      {/* Add Year dialog */}
       <Dialog open={showAddYear} onOpenChange={setShowAddYear}>
         <DialogContent className="max-w-sm">
           <DialogHeader>

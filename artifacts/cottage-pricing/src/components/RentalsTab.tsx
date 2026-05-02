@@ -3,9 +3,10 @@ import { format } from "date-fns";
 import {
   useGetRentals, useUpdateRental, useDeleteRental, getGetRentalsQueryKey,
   useGetRentalApprovals, useSetRentalApproval, getGetRentalApprovalsQueryKey,
+  useGetBookingConfirmations, useSetBookingConfirmation, getGetBookingConfirmationsQueryKey,
   useGetSettings, getGetSettingsQueryKey,
 } from "@workspace/api-client-react";
-import type { RentalEntry, OwnerApproval } from "@workspace/api-client-react";
+import type { RentalEntry, OwnerApproval, BookingUserConfirmation } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, Phone, Mail, Calendar, Trash2, CheckCircle2, Clock, ChevronRight, Lock, ExternalLink, DollarSign, CheckCheck } from "lucide-react";
+import { Loader2, Phone, Mail, Calendar, Trash2, CheckCircle2, Clock, ChevronRight, Lock, ExternalLink, DollarSign, CheckCheck, UserCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function RentalsTab() {
@@ -147,6 +148,7 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin, familyRa
   rental: RentalEntry; onClose: () => void; onConfirmClick: (r: RentalEntry) => void; isAdmin: boolean; familyRate: number | null;
 }) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const updateMutation = useUpdateRental();
   const deleteMutation = useDeleteRental();
@@ -159,6 +161,9 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin, familyRa
 
   const { data: approvals } = useGetRentalApprovals(rental.id, { query: { queryKey: getGetRentalApprovalsQueryKey(rental.id) } });
   const approvalMutation = useSetRentalApproval();
+
+  const { data: confirmations } = useGetBookingConfirmations(rental.id, { query: { queryKey: getGetBookingConfirmationsQueryKey(rental.id) } });
+  const confirmMutation = useSetBookingConfirmation();
 
   function handleSave() {
     const agreedPriceVal = form.agreedPrice === "" ? null : parseFloat(form.agreedPrice);
@@ -188,6 +193,19 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin, familyRa
           toast({ title: approved ? "Approved" : "Approval removed" });
         },
         onError: () => toast({ title: "Error", description: "Failed", variant: "destructive" }),
+      }
+    );
+  }
+
+  function handleConfirmation(targetUserId: number, confirmed: boolean) {
+    confirmMutation.mutate(
+      { id: rental.id, userId: targetUserId, data: { confirmed } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetBookingConfirmationsQueryKey(rental.id) });
+          toast({ title: confirmed ? "Confirmed" : "Confirmation removed" });
+        },
+        onError: () => toast({ title: "Error", description: "Failed to update confirmation", variant: "destructive" }),
       }
     );
   }
@@ -258,6 +276,47 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin, familyRa
               onClick={e => e.stopPropagation()}>
               <ExternalLink className="w-3.5 h-3.5" /> Add to Google Calendar
             </a>
+          </div>
+        )}
+
+        {/* User Confirmations — visible to all logged-in users; admins can toggle any, others only own */}
+        {!editing && confirmations && confirmations.length > 0 && (
+          <div className="border border-border/40 rounded-lg p-3 space-y-2 bg-sky-50/40 dark:bg-sky-950/10">
+            <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+              <UserCheck className="w-3.5 h-3.5 text-sky-500" /> User Confirmations
+              <span className="ml-auto text-xs font-normal text-muted-foreground">
+                {confirmations.filter(c => c.confirmed).length}/{confirmations.length} confirmed
+              </span>
+            </p>
+            {confirmations.map(c => {
+              const canEdit = isAdmin || (user?.id === c.userId);
+              return (
+                <div key={c.id} className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate">{c.userName || c.userEmail}</p>
+                    <p className="text-xs text-muted-foreground truncate">{c.userEmail}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {c.confirmed ? (
+                      <Badge className="bg-green-100 text-green-700 border-green-200 text-xs hover:bg-green-100">
+                        <CheckCircle2 className="w-2.5 h-2.5 mr-1" />Confirmed
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-slate-100 text-slate-500 border-slate-200 text-xs hover:bg-slate-100">
+                        <Clock className="w-2.5 h-2.5 mr-1" />Pending
+                      </Badge>
+                    )}
+                    {canEdit && (
+                      <Button variant="outline" size="sm" className="h-6 text-xs px-2"
+                        onClick={() => handleConfirmation(c.userId, !c.confirmed)}
+                        disabled={confirmMutation.isPending}>
+                        {c.confirmed ? "Revoke" : "Confirm"}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
