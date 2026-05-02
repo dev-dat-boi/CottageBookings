@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Calculator, BookCheck, Home } from "lucide-react";
+import { Loader2, Calculator, BookCheck, Home, CalendarOff } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
@@ -32,9 +32,11 @@ export function BookingsTab() {
   const calculateMutation = useCalculateBooking();
   const createRentalMutation = useCreateRental();
   const { data: settings } = useGetSettings({ query: { queryKey: getGetSettingsQueryKey() } });
-  const { data: existingRentals } = useGetRentals({ query: { queryKey: getGetRentalsQueryKey(), enabled: isLoggedIn } });
 
-  // Build set of booked dates
+  // Always load rentals so guests also see booked dates blocked on the calendar
+  const { data: existingRentals } = useGetRentals({ query: { queryKey: getGetRentalsQueryKey() } });
+
+  // Build set of booked dates from confirmed/submitted/pending rentals
   const bookedDates = useMemo(() => {
     if (!existingRentals) return new Set<string>();
     const dates = new Set<string>();
@@ -49,7 +51,9 @@ export function BookingsTab() {
   }, [existingRentals]);
 
   const disabledDays = useMemo(() => {
-    return [...bookedDates].map(d => parseISO(d));
+    const past = { before: new Date() };
+    const booked = [...bookedDates].map(d => parseISO(d));
+    return [past, ...booked];
   }, [bookedDates]);
 
   const result = calculateMutation.data;
@@ -93,7 +97,10 @@ export function BookingsTab() {
           setDateRange(undefined);
           calculateMutation.reset();
           setChosenRate(null);
-          toast({ title: "Booking submitted!", description: "Your rental is pending owner approval." });
+          toast({
+            title: "Booking request submitted!",
+            description: "An owner will review and confirm your booking soon.",
+          });
         },
         onError: () => toast({ title: "Error", description: "Failed to submit booking.", variant: "destructive" }),
       }
@@ -134,21 +141,21 @@ export function BookingsTab() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-8">
+    <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-8">
       <div className="space-y-6">
         <Card className="border-border/40 shadow-sm">
           <CardHeader>
             <CardTitle>Select Dates</CardTitle>
             <CardDescription>
               Choose check-in and check-out dates.
-              {isLoggedIn && bookedDates.size > 0 && <span className="text-muted-foreground/70"> · Grey = already booked</span>}
+              {bookedDates.size > 0 && (
+                <span className="flex items-center gap-1 mt-1 text-xs text-muted-foreground/80">
+                  <CalendarOff className="w-3 h-3" /> Crossed-out dates are already booked
+                </span>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center">
-            <style>{`
-              .rdp-day_disabled { background: #f3f4f6 !important; color: #9ca3af !important; text-decoration: line-through; opacity: 0.6; }
-              .dark .rdp-day_disabled { background: #1f2937 !important; color: #6b7280 !important; }
-            `}</style>
             <DayPicker
               mode="range"
               selected={dateRange}
@@ -158,6 +165,7 @@ export function BookingsTab() {
               classNames={{
                 day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
                 day_today: "font-bold text-accent",
+                day_disabled: "line-through opacity-40 cursor-not-allowed",
               }}
             />
             <Button
@@ -169,13 +177,21 @@ export function BookingsTab() {
                 ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Calculating...</>
                 : <><Calculator className="w-5 h-5 mr-2" /> Calculate Rate</>}
             </Button>
-            {result && isLoggedIn && (
-              <Button variant="default" className="w-full mt-3 py-6 text-base bg-green-600 hover:bg-green-700 text-white" onClick={() => setShowBookDialog(true)}>
-                <BookCheck className="w-5 h-5 mr-2" /> Book
+            {result && (
+              <Button
+                variant="default"
+                className="w-full mt-3 py-6 text-base bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => setShowBookDialog(true)}
+              >
+                <BookCheck className="w-5 h-5 mr-2" /> Request Booking
               </Button>
             )}
             {isLoggedIn && dateRange?.from && dateRange?.to && (
-              <Button variant="outline" className="w-full mt-2 py-5 text-sm" onClick={() => setShowBookDialog(true)}>
+              <Button
+                variant="outline"
+                className="w-full mt-2 py-5 text-sm"
+                onClick={() => setShowBookDialog(true)}
+              >
                 <Home className="w-4 h-4 mr-2" /> Reserve for Personal Use
               </Button>
             )}
@@ -191,8 +207,9 @@ export function BookingsTab() {
           </CardHeader>
           <CardContent>
             {!result ? (
-              <div className="h-64 flex items-center justify-center text-muted-foreground border-2 border-dashed border-border/40 rounded-xl">
-                Select dates and calculate to see the estimate
+              <div className="h-64 flex flex-col items-center justify-center gap-3 text-muted-foreground border-2 border-dashed border-border/40 rounded-xl">
+                <Calculator className="w-8 h-8 opacity-30" />
+                <p className="text-sm">Select dates and click Calculate to see the estimate</p>
               </div>
             ) : (
               <div className="space-y-8">
@@ -207,20 +224,9 @@ export function BookingsTab() {
                   )}
                 </div>
                 <div className="grid grid-cols-3 gap-2 sm:gap-4">
-                  <div className="bg-card border border-border/40 p-2 sm:p-6 rounded-xl text-center shadow-sm min-w-0">
-                    <p className="text-[10px] sm:text-sm text-muted-foreground font-medium mb-0.5 leading-tight">Nights</p>
-                    <p className="text-base sm:text-3xl font-bold text-foreground">{result.nights}</p>
-                  </div>
-                  <div className="bg-card border border-border/40 p-2 sm:p-6 rounded-xl text-center shadow-sm min-w-0">
-                    <p className="text-[10px] sm:text-sm text-muted-foreground font-medium mb-0.5 leading-tight">Total</p>
-                    <p className="text-sm sm:text-3xl font-bold text-primary leading-tight">${result.totalPrice.toFixed(0)}</p>
-                    <p className="text-[9px] sm:hidden text-muted-foreground">.{String(Math.round((result.totalPrice % 1) * 100)).padStart(2, "0")}</p>
-                  </div>
-                  <div className="bg-card border border-border/40 p-2 sm:p-6 rounded-xl text-center shadow-sm min-w-0">
-                    <p className="text-[10px] sm:text-sm text-muted-foreground font-medium mb-0.5 leading-tight">Avg/Night</p>
-                    <p className="text-sm sm:text-3xl font-bold text-foreground leading-tight">${result.avgDailyRate.toFixed(0)}</p>
-                    <p className="text-[9px] sm:hidden text-muted-foreground">.{String(Math.round((result.avgDailyRate % 1) * 100)).padStart(2, "0")}</p>
-                  </div>
+                  <SummaryCard label="Nights" value={String(result.nights)} />
+                  <SummaryCard label="Total" value={`$${result.totalPrice.toFixed(2)}`} accent />
+                  <SummaryCard label="Avg/Night" value={`$${result.avgDailyRate.toFixed(2)}`} />
                 </div>
                 <div className="border border-border/40 rounded-xl overflow-hidden shadow-sm">
                   <div className="overflow-x-auto">
@@ -247,15 +253,23 @@ export function BookingsTab() {
                             <TableCell>
                               <div className="flex flex-wrap gap-1.5">
                                 {result.includeMultipliers && entry.dayMult !== 1 && (
-                                  <Badge variant="secondary" className="font-normal whitespace-nowrap">Day: {((entry.dayMult - 1) * 100).toFixed(0)}%</Badge>
+                                  <Badge variant="secondary" className="font-normal whitespace-nowrap">
+                                    Day: {((entry.dayMult - 1) * 100).toFixed(0)}%
+                                  </Badge>
                                 )}
                                 {result.includeMultipliers && entry.holiday && (
-                                  <Badge className="bg-accent text-accent-foreground font-normal hover:bg-accent whitespace-nowrap">{entry.holiday}: +{(entry.holidayBoost * 100).toFixed(0)}%</Badge>
+                                  <Badge className="bg-accent text-accent-foreground font-normal hover:bg-accent whitespace-nowrap">
+                                    {entry.holiday}: +{(entry.holidayBoost * 100).toFixed(0)}%
+                                  </Badge>
                                 )}
-                                {(!result.includeMultipliers || (entry.dayMult === 1 && !entry.holiday)) && <span className="text-sm text-muted-foreground">—</span>}
+                                {(!result.includeMultipliers || (entry.dayMult === 1 && !entry.holiday)) && (
+                                  <span className="text-sm text-muted-foreground">—</span>
+                                )}
                               </div>
                             </TableCell>
-                            <TableCell className="text-right font-bold whitespace-nowrap">${entry.price.toFixed(2)}</TableCell>
+                            <TableCell className="text-right font-bold whitespace-nowrap">
+                              ${entry.price.toFixed(2)}
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -268,8 +282,13 @@ export function BookingsTab() {
         </Card>
       </div>
 
-      <RateDialog open={showRateDialog} onClose={() => setShowRateDialog(false)} onConfirm={handleConfirmRate}
-        standardRate={settings?.basePrice ?? 300} familyRate={settings?.familyRate ?? 200} />
+      <RateDialog
+        open={showRateDialog}
+        onClose={() => setShowRateDialog(false)}
+        onConfirm={handleConfirmRate}
+        standardRate={settings?.basePrice ?? 300}
+        familyRate={settings?.familyRate ?? 200}
+      />
 
       {showBookDialog && dateRange?.from && dateRange?.to && (
         <BookDialog
@@ -279,6 +298,7 @@ export function BookingsTab() {
           onPersonalBook={handlePersonalBook}
           isPending={createRentalMutation.isPending}
           hasCalculation={!!result}
+          canPersonalBook={isLoggedIn}
           startDate={format(dateRange.from, "yyyy-MM-dd")}
           endDate={format(dateRange.to, "yyyy-MM-dd")}
           nights={result?.nights ?? Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24))}
@@ -291,39 +311,74 @@ export function BookingsTab() {
   );
 }
 
+function SummaryCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="bg-card border border-border/40 p-3 sm:p-6 rounded-xl text-center shadow-sm">
+      <p className="text-xs sm:text-sm text-muted-foreground font-medium mb-1">{label}</p>
+      <p className={`text-lg sm:text-3xl font-bold ${accent ? "text-primary" : "text-foreground"}`}>{value}</p>
+    </div>
+  );
+}
+
 interface BookDialogProps {
-  open: boolean; onClose: () => void;
+  open: boolean;
+  onClose: () => void;
   onBook: (name: string, phone: string, email: string, details: string) => void;
   onPersonalBook: (name: string, details: string) => void;
-  isPending: boolean; hasCalculation: boolean;
-  startDate: string; endDate: string; nights: number; totalPrice: number; rateType: string;
+  isPending: boolean;
+  hasCalculation: boolean;
+  canPersonalBook: boolean;
+  startDate: string;
+  endDate: string;
+  nights: number;
+  totalPrice: number;
+  rateType: string;
   defaultName: string;
 }
 
-function BookDialog({ open, onClose, onBook, onPersonalBook, isPending, hasCalculation, startDate, endDate, nights, totalPrice, rateType, defaultName }: BookDialogProps) {
+function BookDialog({
+  open, onClose, onBook, onPersonalBook, isPending, hasCalculation, canPersonalBook,
+  startDate, endDate, nights, totalPrice, rateType, defaultName,
+}: BookDialogProps) {
   const [mode, setMode] = useState<"standard" | "personal">(hasCalculation ? "standard" : "personal");
   const [name, setName] = useState(defaultName);
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [details, setDetails] = useState("");
 
+  const isStandard = mode === "standard";
+  const canSubmit = name.trim() && (isStandard ? phone.trim() : true);
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{mode === "personal" ? "Reserve for Personal Use" : "Book this Rental"}</DialogTitle>
+          <DialogTitle>
+            {isStandard ? "Request a Booking" : "Reserve for Personal Use"}
+          </DialogTitle>
           <DialogDescription>
             {startDate} → {endDate} · {nights} night{nights !== 1 ? "s" : ""}
-            {mode === "standard" && ` · $${totalPrice.toFixed(2)} (${rateType === "family" ? "Family" : "Standard"})`}
+            {isStandard && ` · Estimated $${totalPrice.toFixed(2)} (${rateType === "family" ? "Family" : "Standard"})`}
           </DialogDescription>
         </DialogHeader>
 
-        {hasCalculation && (
-          <div className="flex gap-2 pb-1">
-            <Button variant={mode === "standard" ? "default" : "outline"} size="sm" className="flex-1" onClick={() => setMode("standard")}>
-              <BookCheck className="w-3.5 h-3.5 mr-1" /> Standard Booking
+        {/* Mode toggle — only show if logged in and has a calculation */}
+        {canPersonalBook && hasCalculation && (
+          <div className="flex gap-2">
+            <Button
+              variant={isStandard ? "default" : "outline"}
+              size="sm"
+              className="flex-1"
+              onClick={() => setMode("standard")}
+            >
+              <BookCheck className="w-3.5 h-3.5 mr-1" /> Rental Booking
             </Button>
-            <Button variant={mode === "personal" ? "default" : "outline"} size="sm" className="flex-1 bg-blue-600 hover:bg-blue-700 data-[active=false]:bg-transparent" onClick={() => setMode("personal")}>
+            <Button
+              variant={!isStandard ? "default" : "outline"}
+              size="sm"
+              className={`flex-1 ${!isStandard ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}`}
+              onClick={() => setMode("personal")}
+            >
               <Home className="w-3.5 h-3.5 mr-1" /> Personal Use
             </Button>
           </div>
@@ -331,38 +386,76 @@ function BookDialog({ open, onClose, onBook, onPersonalBook, isPending, hasCalcu
 
         <div className="space-y-3 py-1">
           <div>
-            <label className="text-sm font-medium">{mode === "personal" ? "Your Name" : "Renter Name"} *</label>
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="Full name" className="mt-1" />
+            <label className="text-sm font-medium">{isStandard ? "Your Name" : "Name"} *</label>
+            <Input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Full name"
+              className="mt-1"
+              autoFocus
+            />
           </div>
-          {mode === "standard" && (
+          {isStandard && (
             <>
               <div>
                 <label className="text-sm font-medium">Phone Number *</label>
-                <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" type="tel" className="mt-1" />
+                <Input
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  placeholder="+1 (555) 000-0000"
+                  type="tel"
+                  className="mt-1"
+                />
               </div>
               <div>
                 <label className="text-sm font-medium">Email</label>
-                <Input value={email} onChange={e => setEmail(e.target.value)} placeholder="renter@email.com" type="email" className="mt-1" />
+                <Input
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="you@email.com"
+                  type="email"
+                  className="mt-1"
+                />
               </div>
             </>
           )}
           <div>
             <label className="text-sm font-medium">Notes</label>
-            <Textarea value={details} onChange={e => setDetails(e.target.value)}
-              placeholder={mode === "personal" ? "Who's staying, notes..." : "Number of guests, special requests..."}
-              rows={3} className="mt-1" />
+            <Textarea
+              value={details}
+              onChange={e => setDetails(e.target.value)}
+              placeholder={isStandard ? "Number of guests, special requests..." : "Who's staying, notes..."}
+              rows={3}
+              className="mt-1"
+            />
           </div>
+          {isStandard && (
+            <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
+              Your request will be reviewed by an owner before it's confirmed. You'll be contacted directly.
+            </p>
+          )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button
-            disabled={!name.trim() || (mode === "standard" && !phone.trim()) || isPending}
-            onClick={() => mode === "personal" ? onPersonalBook(name.trim(), details.trim()) : onBook(name.trim(), phone.trim(), email.trim(), details.trim())}
-            className={mode === "personal" ? "bg-blue-600 hover:bg-blue-700 text-white" : "bg-green-600 hover:bg-green-700 text-white"}
+            disabled={!canSubmit || isPending}
+            onClick={() => {
+              if (isStandard) {
+                onBook(name.trim(), phone.trim(), email.trim(), details.trim());
+              } else {
+                onPersonalBook(name.trim(), details.trim());
+              }
+            }}
+            className={isStandard
+              ? "bg-green-600 hover:bg-green-700 text-white"
+              : "bg-blue-600 hover:bg-blue-700 text-white"}
           >
-            {isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting…</> :
-              mode === "personal" ? <><Home className="w-4 h-4 mr-2" /> Reserve</> : <><BookCheck className="w-4 h-4 mr-2" /> Confirm</>}
+            {isPending
+              ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting…</>
+              : isStandard
+                ? <><BookCheck className="w-4 h-4 mr-2" /> Submit Request</>
+                : <><Home className="w-4 h-4 mr-2" /> Reserve</>}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -371,9 +464,11 @@ function BookDialog({ open, onClose, onBook, onPersonalBook, isPending, hasCalcu
 }
 
 function RateDialog({ open, onClose, onConfirm, standardRate, familyRate }: {
-  open: boolean; onClose: () => void;
+  open: boolean;
+  onClose: () => void;
   onConfirm: (rateType: RateType, includeMultipliers: boolean) => void;
-  standardRate: number; familyRate: number;
+  standardRate: number;
+  familyRate: number;
 }) {
   const [selected, setSelected] = useState<RateType>("standard");
   const [withMult, setWithMult] = useState(false);
@@ -383,29 +478,41 @@ function RateDialog({ open, onClose, onConfirm, standardRate, familyRate }: {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Select Rate Type</DialogTitle>
-          <DialogDescription>Choose which rate to apply to this booking.</DialogDescription>
+          <DialogDescription>Choose which rate to apply to this booking estimate.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3 py-2">
-          <button type="button" onClick={() => setSelected("standard")}
-            className={`w-full text-left p-4 rounded-xl border-2 transition-colors ${selected === "standard" ? "border-primary bg-primary/5" : "border-border/40 hover:border-border"}`}>
+          <button
+            type="button"
+            onClick={() => setSelected("standard")}
+            className={`w-full text-left p-4 rounded-xl border-2 transition-colors ${selected === "standard" ? "border-primary bg-primary/5" : "border-border/40 hover:border-border"}`}
+          >
             <div className="font-semibold text-foreground">Standard Rate</div>
             <div className="text-sm text-muted-foreground mt-0.5">${standardRate}/night base — all multipliers applied</div>
           </button>
-          <button type="button" onClick={() => setSelected("family")}
-            className={`w-full text-left p-4 rounded-xl border-2 transition-colors ${selected === "family" ? "border-primary bg-primary/5" : "border-border/40 hover:border-border"}`}>
+          <button
+            type="button"
+            onClick={() => setSelected("family")}
+            className={`w-full text-left p-4 rounded-xl border-2 transition-colors ${selected === "family" ? "border-primary bg-primary/5" : "border-border/40 hover:border-border"}`}
+          >
             <div className="font-semibold text-foreground">Family Rate</div>
             <div className="text-sm text-muted-foreground mt-0.5">${familyRate}/night base rate</div>
           </button>
           {selected === "family" && (
-            <div className="ml-2 mt-1 space-y-2 pl-3 border-l-2 border-primary/30">
+            <div className="ml-2 pl-3 border-l-2 border-primary/30 space-y-2">
               <p className="text-sm font-medium text-foreground">Apply multipliers?</p>
               <div className="flex gap-3">
-                <button type="button" onClick={() => setWithMult(false)}
-                  className={`flex-1 py-2 px-3 rounded-lg border text-sm transition-colors ${!withMult ? "bg-primary text-primary-foreground border-primary" : "border-border/40 hover:bg-muted/50"}`}>
+                <button
+                  type="button"
+                  onClick={() => setWithMult(false)}
+                  className={`flex-1 py-2 px-3 rounded-lg border text-sm transition-colors ${!withMult ? "bg-primary text-primary-foreground border-primary" : "border-border/40 hover:bg-muted/50"}`}
+                >
                   Exclude — flat ${familyRate}/night
                 </button>
-                <button type="button" onClick={() => setWithMult(true)}
-                  className={`flex-1 py-2 px-3 rounded-lg border text-sm transition-colors ${withMult ? "bg-primary text-primary-foreground border-primary" : "border-border/40 hover:bg-muted/50"}`}>
+                <button
+                  type="button"
+                  onClick={() => setWithMult(true)}
+                  className={`flex-1 py-2 px-3 rounded-lg border text-sm transition-colors ${withMult ? "bg-primary text-primary-foreground border-primary" : "border-border/40 hover:bg-muted/50"}`}
+                >
                   Include multipliers
                 </button>
               </div>
@@ -414,7 +521,9 @@ function RateDialog({ open, onClose, onConfirm, standardRate, familyRate }: {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => onConfirm(selected, selected === "family" ? withMult : true)}>Calculate</Button>
+          <Button onClick={() => onConfirm(selected, selected === "family" ? withMult : true)}>
+            Calculate
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { setAuthTokenGetter } from "@workspace/api-client-react";
 
 export interface AuthUser {
   id: number;
@@ -30,6 +31,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Register the token getter with the API client so every request
+  // automatically gets the Authorization: Bearer <token> header.
+  useEffect(() => {
+    setAuthTokenGetter(() => localStorage.getItem(TOKEN_KEY));
+    return () => { setAuthTokenGetter(null); };
+  }, []);
 
   useEffect(() => {
     const storedToken = localStorage.getItem(TOKEN_KEY);
