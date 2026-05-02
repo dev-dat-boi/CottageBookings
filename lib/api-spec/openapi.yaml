@@ -445,6 +445,94 @@ paths:
                     type: integer
                 required: [deleted]
 
+  /auth/change-password:
+    post:
+      operationId: changePassword
+      tags: [auth]
+      summary: Change password for the currently logged-in user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                required: [ok]
+
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      tags: [auth]
+      summary: Request a password reset link via email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "200":
+          description: Reset link sent (or silently skipped if email not found)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                required: [ok]
+
+  /auth/reset-password:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Reset password using a token from the reset link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                required: [ok]
+
+  /users/{id}/send-reset-link:
+    post:
+      operationId: sendResetLink
+      tags: [auth]
+      summary: Admin sends a password reset link to a user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reset link generated (and emailed if SMTP configured)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResetLinkResponse"
+
   /cottage-info:
     get:
       operationId: getCottageInfo
@@ -922,6 +1010,40 @@ components:
         password:
           type: string
           nullable: true
+
+    ChangePasswordRequest:
+      type: object
+      properties:
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+      required: [currentPassword, newPassword]
+
+    ForgotPasswordRequest:
+      type: object
+      properties:
+        email:
+          type: string
+      required: [email]
+
+    ResetPasswordRequest:
+      type: object
+      properties:
+        token:
+          type: string
+        newPassword:
+          type: string
+      required: [token, newPassword]
+
+    ResetLinkResponse:
+      type: object
+      properties:
+        link:
+          type: string
+        emailSent:
+          type: boolean
+      required: [link, emailSent]
 
     CottageInfo:
       type: object

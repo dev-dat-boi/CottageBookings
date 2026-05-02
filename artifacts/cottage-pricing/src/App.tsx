@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
 import BookingConfirmationPage from "@/pages/BookingConfirmationPage";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import { AdminLockProvider } from "@/contexts/AdminLockContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 
@@ -15,6 +16,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/booking/:token" component={BookingConfirmationPage} />
+      <Route path="/reset-password/:token" component={ResetPasswordPage} />
       <Route component={NotFound} />
     </Switch>
   );

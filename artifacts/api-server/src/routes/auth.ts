@@ -1,8 +1,10 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { db, usersTable, settingsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { signToken, extractToken, requireAdmin } from "../lib/auth";
+import { sendEmail } from "../lib/email";
 
 const router = Router();
 
@@ -185,6 +187,116 @@ router.delete("/users/:id", requireAdmin, async (req, res) => {
     res.json({ deleted: 1 });
   } catch (err) {
     req.log.error({ err }, "Delete user failed");
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+function generateResetToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function buildResetLink(token: string): string {
+  const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
+  const base = domain ? `https://${domain}` : "http://localhost:80";
+  return `${base}/reset-password/${token}`;
+}
+
+function buildResetEmailHtml(name: string, link: string): string {
+  return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f9f9f9;">
+  <div style="background:#2d6a4f;padding:20px;border-radius:8px 8px 0 0;">
+    <h1 style="color:white;margin:0;font-size:22px;">Password Reset</h1>
+  </div>
+  <div style="background:white;padding:24px;border-radius:0 0 8px 8px;border:1px solid #e0e0e0;border-top:none;">
+    <p style="color:#555;margin:0 0 20px">Hi <strong>${name || "there"}</strong>, a password reset was requested for your cottage management account.</p>
+    <div style="text-align:center;margin:24px 0;">
+      <a href="${link}" style="background:#2d6a4f;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block;">
+        Reset My Password
+      </a>
+    </div>
+    <p style="color:#777;font-size:13px;">This link expires in 1 hour. If you didn't request this, you can ignore it.</p>
+    <p style="color:#aaa;font-size:12px;margin-top:24px;text-align:center;">Cottage Rental Management</p>
+  </div>
+</div>`;
+}
+
+router.post("/auth/change-password", async (req, res) => {
+  const payload = extractToken(req);
+  if (!payload) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword || newPassword.length < 6) {
+    res.status(400).json({ error: "currentPassword and newPassword (min 6 chars) required" });
+    return;
+  }
+  try {
+    const users = await db.select().from(usersTable).where(eq(usersTable.id, payload.userId));
+    if (users.length === 0) { res.status(404).json({ error: "User not found" }); return; }
+    const user = users[0];
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) { res.status(401).json({ error: "Current password is incorrect" }); return; }
+    const hash = await bcrypt.hash(newPassword, 10);
+    await db.update(usersTable).set({ passwordHash: hash }).where(eq(usersTable.id, payload.userId));
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "Change password failed");
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.post("/auth/forgot-password", async (req, res) => {
+  const { email } = req.body;
+  if (!email) { res.status(400).json({ error: "Email required" }); return; }
+  try {
+    const users = await db.select().from(usersTable).where(eq(usersTable.email, (email as string).toLowerCase().trim()));
+    if (users.length === 0) { res.json({ ok: true }); return; } // silent — don't reveal existence
+    const user = users[0];
+    const token = generateResetToken();
+    const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await db.update(usersTable).set({ resetToken: token, resetTokenExpiry: expiry } as any).where(eq(usersTable.id, user.id));
+    const link = buildResetLink(token);
+    await sendEmail({ to: [user.email], subject: "Reset your cottage app password", html: buildResetEmailHtml(user.name, link) });
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "Forgot password failed");
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.post("/auth/reset-password", async (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword || newPassword.length < 6) {
+    res.status(400).json({ error: "token and newPassword (min 6 chars) required" });
+    return;
+  }
+  try {
+    const users = await db.select().from(usersTable).where(eq((usersTable as any).resetToken, token));
+    if (users.length === 0) { res.status(400).json({ error: "Invalid or expired reset link" }); return; }
+    const user = users[0];
+    const expiry = (user as any).resetTokenExpiry as Date | null;
+    if (!expiry || expiry < new Date()) { res.status(400).json({ error: "Reset link has expired" }); return; }
+    const hash = await bcrypt.hash(newPassword, 10);
+    await db.update(usersTable).set({ passwordHash: hash, resetToken: null, resetTokenExpiry: null } as any).where(eq(usersTable.id, user.id));
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "Reset password failed");
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.post("/users/:id/send-reset-link", requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id as string);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const users = await db.select().from(usersTable).where(eq(usersTable.id, id));
+    if (users.length === 0) { res.status(404).json({ error: "User not found" }); return; }
+    const user = users[0];
+    const token = generateResetToken();
+    const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours for admin-generated links
+    await db.update(usersTable).set({ resetToken: token, resetTokenExpiry: expiry } as any).where(eq(usersTable.id, id));
+    const link = buildResetLink(token);
+    const emailSent = await sendEmail({ to: [user.email], subject: "Set your cottage app password", html: buildResetEmailHtml(user.name, link) });
+    res.json({ link, emailSent });
+  } catch (err) {
+    req.log.error({ err }, "Send reset link failed");
     res.status(500).json({ error: "Server error" });
   }
 });

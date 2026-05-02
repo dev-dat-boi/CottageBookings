@@ -610,6 +610,53 @@ export const DeleteUserResponse = zod.object({
 });
 
 /**
+ * @summary Change password for the currently logged-in user
+ */
+export const ChangePasswordBody = zod.object({
+  currentPassword: zod.string(),
+  newPassword: zod.string(),
+});
+
+export const ChangePasswordResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Request a password reset link via email
+ */
+export const ForgotPasswordBody = zod.object({
+  email: zod.string(),
+});
+
+export const ForgotPasswordResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Reset password using a token from the reset link
+ */
+export const ResetPasswordBody = zod.object({
+  token: zod.string(),
+  newPassword: zod.string(),
+});
+
+export const ResetPasswordResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Admin sends a password reset link to a user
+ */
+export const SendResetLinkParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SendResetLinkResponse = zod.object({
+  link: zod.string(),
+  emailSent: zod.boolean(),
+});
+
+/**
  * @summary Get cottage information (title, description, photos)
  */
 export const GetCottageInfoResponse = zod.object({

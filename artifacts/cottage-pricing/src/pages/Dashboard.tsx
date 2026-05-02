@@ -6,9 +6,10 @@ import { CalendarTab } from "@/components/CalendarTab";
 import { HistoryTab } from "@/components/HistoryTab";
 import { RentalsTab } from "@/components/RentalsTab";
 import { HomeTab } from "@/components/HomeTab";
+import { UsersTab } from "@/components/UsersTab";
 import { LoginDialog } from "@/components/LoginDialog";
-import { UserManagementDialog } from "@/components/UserManagementDialog";
-import { Trees, History, BookMarked, LogOut, LogIn, Users, Home, Shield } from "lucide-react";
+import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
+import { Trees, History, BookMarked, LogOut, LogIn, Users, Home, Shield, KeyRound } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 export default function Dashboard() {
   const { isLoggedIn, isAdmin, user, logout } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
-  const [showUsers, setShowUsers] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   return (
     <div className="min-h-[100dvh] w-full bg-background flex flex-col">
@@ -38,11 +39,9 @@ export default function Dashboard() {
                   <span className="text-sm text-muted-foreground">{user?.name || user?.email}</span>
                   {isAdmin && <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs hover:bg-purple-100"><Shield className="w-2.5 h-2.5 mr-1" />Admin</Badge>}
                 </div>
-                {isAdmin && (
-                  <Button variant="outline" size="sm" onClick={() => setShowUsers(true)} className="hidden sm:flex">
-                    <Users className="w-3.5 h-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Users</span>
-                  </Button>
-                )}
+                <Button variant="outline" size="sm" onClick={() => setShowChangePassword(true)} className="hidden sm:flex" title="Change password">
+                  <KeyRound className="w-3.5 h-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Password</span>
+                </Button>
                 <Button variant="outline" size="sm" onClick={logout}>
                   <LogOut className="w-3.5 h-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Sign Out</span>
                 </Button>
@@ -83,6 +82,12 @@ export default function Dashboard() {
                     <History className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                     History
                   </TabsTrigger>
+                  {isAdmin && (
+                    <TabsTrigger value="users" className="px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap flex items-center gap-1.5">
+                      <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      Users
+                    </TabsTrigger>
+                  )}
                 </>
               )}
             </TabsList>
@@ -94,11 +99,12 @@ export default function Dashboard() {
           <TabsContent value="calendar" className="mt-0 outline-none"><CalendarTab /></TabsContent>
           <TabsContent value="rentals" className="mt-0 outline-none"><RentalsTab /></TabsContent>
           <TabsContent value="history" className="mt-0 outline-none"><HistoryTab /></TabsContent>
+          {isAdmin && <TabsContent value="users" className="mt-0 outline-none"><UsersTab /></TabsContent>}
         </Tabs>
       </main>
 
       <LoginDialog open={showLogin} onClose={() => setShowLogin(false)} />
-      {isAdmin && <UserManagementDialog open={showUsers} onClose={() => setShowUsers(false)} />}
+      <ChangePasswordDialog open={showChangePassword} onClose={() => setShowChangePassword(false)} />
     </div>
   );
 }

@@ -215,6 +215,25 @@ export interface UserPatch {
   password?: string | null;
 }
 
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+}
+
+export interface ResetLinkResponse {
+  link: string;
+  emailSent: boolean;
+}
+
 export interface CottageInfo {
   title: string;
   description: string;
@@ -246,6 +265,18 @@ export type DeleteRental200 = {
 
 export type DeleteUser200 = {
   deleted: number;
+};
+
+export type ChangePassword200 = {
+  ok: boolean;
+};
+
+export type ForgotPassword200 = {
+  ok: boolean;
+};
+
+export type ResetPassword200 = {
+  ok: boolean;
 };
 
 export type GetHistoryParams = {

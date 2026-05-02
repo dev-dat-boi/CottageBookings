@@ -69,6 +69,8 @@ export const usersTable = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   role: text("role").notNull().default('viewer'),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  resetToken: text("reset_token"),
+  resetTokenExpiry: timestamp("reset_token_expiry"),
 });
 
 export const cottageInfoTable = pgTable("cottage_info", {

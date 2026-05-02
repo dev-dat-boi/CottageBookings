@@ -183,7 +183,8 @@ router.put("/settings", async (req, res) => {
     const existing = await ensureDefaultSettings();
     const oldRow = existing[0];
     const oldOwners = parseOwners((oldRow as any).ownersJson ?? "[]");
-    const newOwners: { name: string; email: string }[] = (body as any).owners ?? [];
+    const hasOwners = Array.isArray((body as any).owners);
+    const newOwners: { name: string; email: string }[] = hasOwners ? (body as any).owners : oldOwners;
 
     const diffDesc = buildSettingsDiff(oldRow, body);
 
