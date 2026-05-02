@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, settingsTable, dayOverridesTable } from "@workspace/db";
+import { db, settingsTable, dayOverridesTable, changeHistoryTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { generateCalendar, computeEntry, parseSeasons, parseHolidays } from "../lib/pricing";
 import type { Override } from "../lib/pricing";
@@ -71,6 +71,11 @@ router.post("/calendar/bulk-days", async (req, res) => {
           set: { dayOverride: dayName },
         });
     }
+    await db.insert(changeHistoryTable).values({
+      changeType: "bulk_days",
+      description: `Bulk cascade: start day ${startDay}, ${dates.length} dates updated (${from}–${to})`,
+      metadata: JSON.stringify({ startDay, fromYear: from, toYear: to, count: dates.length }),
+    });
     res.json({ updated: dates.length });
   } catch (err) {
     req.log.error({ err }, "Failed to apply bulk day overrides");
@@ -90,6 +95,11 @@ router.put("/calendar/:date/override", async (req, res) => {
   // If all fields are null → delete the row entirely
   if (seasonOverride === null && holidayOverride === null && dayOverride === null) {
     await db.delete(dayOverridesTable).where(eq(dayOverridesTable.date, date));
+    await db.insert(changeHistoryTable).values({
+      changeType: "calendar_remove",
+      description: `Reset ${date} to defaults (all overrides removed)`,
+      metadata: JSON.stringify({ date }),
+    });
     const { s, seasons, holidays, overrides } = await getSettingsAndOverrides();
     const entry = computeEntry(new Date(date + "T12:00:00Z"), s, seasons, holidays, overrides.get(date) ?? null);
     res.json(entry);
@@ -104,6 +114,16 @@ router.put("/calendar/:date/override", async (req, res) => {
         target: dayOverridesTable.date,
         set: { seasonOverride, holidayOverride, dayOverride },
       });
+
+    const parts: string[] = [];
+    if (dayOverride) parts.push(`day → ${dayOverride}`);
+    if (seasonOverride) parts.push(`season → ${seasonOverride}`);
+    if (holidayOverride !== null) parts.push(`holiday → ${holidayOverride || "None"}`);
+    await db.insert(changeHistoryTable).values({
+      changeType: "calendar_override",
+      description: `Override ${date}: ${parts.join(", ")}`,
+      metadata: JSON.stringify({ date, seasonOverride, holidayOverride, dayOverride }),
+    });
 
     const { s, seasons, holidays, overrides } = await getSettingsAndOverrides();
     const d = new Date(date + "T12:00:00Z");
@@ -124,6 +144,11 @@ router.delete("/calendar/:date/override", async (req, res) => {
 
   try {
     await db.delete(dayOverridesTable).where(eq(dayOverridesTable.date, date));
+    await db.insert(changeHistoryTable).values({
+      changeType: "calendar_remove",
+      description: `Reset ${date} to defaults`,
+      metadata: JSON.stringify({ date }),
+    });
     const { s, seasons, holidays, overrides } = await getSettingsAndOverrides();
     const d = new Date(date + "T12:00:00Z");
     const entry = computeEntry(d, s, seasons, holidays, overrides.get(date) ?? null);

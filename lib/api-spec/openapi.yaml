@@ -12,6 +12,7 @@ tags:
   - name: settings
   - name: calendar
   - name: bookings
+  - name: history
 paths:
   /healthz:
     get:
@@ -164,6 +165,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/BookingResult"
 
+  /history:
+    get:
+      operationId: getHistory
+      tags: [history]
+      summary: Get change history log
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Max number of entries to return (default 200)
+      responses:
+        "200":
+          description: List of change history entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChangeHistoryEntry"
+    delete:
+      operationId: clearHistory
+      tags: [history]
+      summary: Clear all change history
+      responses:
+        "200":
+          description: Cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                required: [deleted]
+
 components:
   schemas:
     HealthStatus:
@@ -232,6 +270,13 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Holiday"
+        holidaysByYear:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: "#/components/schemas/Holiday"
+          description: "Per-year holiday overrides keyed by year string (e.g. '2026')"
       required: [basePrice, familyRate, seasons, dayMultipliers, holidays]
 
     DayOverrideRequest:
@@ -344,3 +389,18 @@ components:
           items:
             $ref: "#/components/schemas/CalendarEntry"
       required: [startDate, endDate, nights, totalPrice, avgDailyRate, rateType, includeMultipliers, breakdown]
+
+    ChangeHistoryEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        createdAt:
+          type: string
+        changeType:
+          type: string
+        description:
+          type: string
+        metadata:
+          type: string
+      required: [id, createdAt, changeType, description, metadata]

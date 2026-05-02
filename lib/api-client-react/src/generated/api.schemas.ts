@@ -33,12 +33,19 @@ export interface DayMultipliers {
   Sunday: number;
 }
 
+/**
+ * Per-year holiday overrides keyed by year string (e.g. '2026')
+ */
+export type SettingsHolidaysByYear = { [key: string]: Holiday[] };
+
 export interface Settings {
   basePrice: number;
   familyRate: number;
   seasons: Season[];
   dayMultipliers: DayMultipliers;
   holidays: Holiday[];
+  /** Per-year holiday overrides keyed by year string (e.g. '2026') */
+  holidaysByYear?: SettingsHolidaysByYear;
 }
 
 export interface DayOverrideRequest {
@@ -95,6 +102,14 @@ export interface BookingResult {
   breakdown: CalendarEntry[];
 }
 
+export interface ChangeHistoryEntry {
+  id: number;
+  createdAt: string;
+  changeType: string;
+  description: string;
+  metadata: string;
+}
+
 export type GetCalendarParams = {
   /**
    * First year to include (defaults to current year)
@@ -104,4 +119,15 @@ export type GetCalendarParams = {
    * Last year to include (defaults to fromYear + 1)
    */
   toYear?: number;
+};
+
+export type GetHistoryParams = {
+  /**
+   * Max number of entries to return (default 200)
+   */
+  limit?: number;
+};
+
+export type ClearHistory200 = {
+  deleted: number;
 };

@@ -1,14 +1,24 @@
 import { Router } from "express";
-import { db, settingsTable } from "@workspace/db";
+import { db, settingsTable, changeHistoryTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { UpdateSettingsBody } from "@workspace/api-zod";
 import { DEFAULT_SEASONS, DEFAULT_HOLIDAYS, parseSeasons, parseHolidays } from "../lib/pricing";
+
+function parseHolidaysByYear(json: string): Record<string, ReturnType<typeof parseHolidays>> {
+  try {
+    const obj = JSON.parse(json);
+    return typeof obj === "object" && !Array.isArray(obj) && obj !== null ? obj : {};
+  } catch {
+    return {};
+  }
+}
 
 const router = Router();
 
 function rowToApi(row: typeof settingsTable.$inferSelect) {
   const seasons = parseSeasons(row.seasonsJson);
   const holidays = parseHolidays(row.holidaysJson);
+  const holidaysByYear = parseHolidaysByYear(row.holidaysByYearJson ?? "{}");
   return {
     basePrice: row.basePrice,
     familyRate: row.familyRate,
@@ -23,6 +33,7 @@ function rowToApi(row: typeof settingsTable.$inferSelect) {
       Sunday: row.daySunday,
     },
     holidays,
+    holidaysByYear,
   };
 }
 
@@ -84,7 +95,17 @@ router.put("/settings", async (req, res) => {
       daySunday: body.dayMultipliers.Sunday,
       seasonsJson: JSON.stringify(body.seasons),
       holidaysJson: JSON.stringify(body.holidays),
+      holidaysByYearJson: JSON.stringify(body.holidaysByYear ?? {}),
     }).where(eq(settingsTable.id, 1));
+
+    // Log the change
+    const yearKeys = Object.keys(body.holidaysByYear ?? {});
+    const changeDesc = `Settings saved: base $${body.basePrice}, family $${body.familyRate}, ${body.seasons.length} seasons, ${body.holidays.length} default holidays${yearKeys.length > 0 ? `, per-year overrides for ${yearKeys.join(", ")}` : ""}`;
+    await db.insert(changeHistoryTable).values({
+      changeType: "settings",
+      description: changeDesc,
+      metadata: JSON.stringify({ basePrice: body.basePrice, familyRate: body.familyRate }),
+    });
 
     const rows = await db.select().from(settingsTable).where(eq(settingsTable.id, 1));
     res.json(rowToApi(rows[0]));

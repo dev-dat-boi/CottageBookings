@@ -22,8 +22,11 @@ import type {
   BulkDaysRequest,
   BulkDaysResult,
   CalendarEntry,
+  ChangeHistoryEntry,
+  ClearHistory200,
   DayOverrideRequest,
   GetCalendarParams,
+  GetHistoryParams,
   HealthStatus,
   Settings,
 } from "./api.schemas";
@@ -706,4 +709,179 @@ export const useCalculateBooking = <
   TContext
 > => {
   return useMutation(getCalculateBookingMutationOptions(options));
+};
+
+/**
+ * @summary Get change history log
+ */
+export const getGetHistoryUrl = (params?: GetHistoryParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/history?${stringifiedParams}`
+    : `/api/history`;
+};
+
+export const getHistory = async (
+  params?: GetHistoryParams,
+  options?: RequestInit,
+): Promise<ChangeHistoryEntry[]> => {
+  return customFetch<ChangeHistoryEntry[]>(getGetHistoryUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetHistoryQueryKey = (params?: GetHistoryParams) => {
+  return [`/api/history`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetHistoryQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getHistory>>> = ({
+    signal,
+  }) => getHistory(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getHistory>>
+>;
+export type GetHistoryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get change history log
+ */
+
+export function useGetHistory<
+  TData = Awaited<ReturnType<typeof getHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetHistoryQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Clear all change history
+ */
+export const getClearHistoryUrl = () => {
+  return `/api/history`;
+};
+
+export const clearHistory = async (
+  options?: RequestInit,
+): Promise<ClearHistory200> => {
+  return customFetch<ClearHistory200>(getClearHistoryUrl(), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getClearHistoryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearHistory>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearHistory>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["clearHistory"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearHistory>>,
+    void
+  > = () => {
+    return clearHistory(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearHistoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearHistory>>
+>;
+
+export type ClearHistoryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Clear all change history
+ */
+export const useClearHistory = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearHistory>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof clearHistory>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getClearHistoryMutationOptions(options));
 };

@@ -45,6 +45,20 @@ export const GetSettingsResponse = zod.object({
       endDate: zod.string().nullish(),
     }),
   ),
+  holidaysByYear: zod
+    .record(
+      zod.string(),
+      zod.array(
+        zod.object({
+          name: zod.string(),
+          boost: zod.number(),
+          startDate: zod.string().nullish(),
+          endDate: zod.string().nullish(),
+        }),
+      ),
+    )
+    .optional()
+    .describe("Per-year holiday overrides keyed by year string (e.g. '2026')"),
 });
 
 /**
@@ -78,6 +92,20 @@ export const UpdateSettingsBody = zod.object({
       endDate: zod.string().nullish(),
     }),
   ),
+  holidaysByYear: zod
+    .record(
+      zod.string(),
+      zod.array(
+        zod.object({
+          name: zod.string(),
+          boost: zod.number(),
+          startDate: zod.string().nullish(),
+          endDate: zod.string().nullish(),
+        }),
+      ),
+    )
+    .optional()
+    .describe("Per-year holiday overrides keyed by year string (e.g. '2026')"),
 });
 
 export const UpdateSettingsResponse = zod.object({
@@ -108,6 +136,20 @@ export const UpdateSettingsResponse = zod.object({
       endDate: zod.string().nullish(),
     }),
   ),
+  holidaysByYear: zod
+    .record(
+      zod.string(),
+      zod.array(
+        zod.object({
+          name: zod.string(),
+          boost: zod.number(),
+          startDate: zod.string().nullish(),
+          endDate: zod.string().nullish(),
+        }),
+      ),
+    )
+    .optional()
+    .describe("Per-year holiday overrides keyed by year string (e.g. '2026')"),
 });
 
 /**
@@ -255,4 +297,30 @@ export const CalculateBookingResponse = zod.object({
       syncedHoliday: zod.string().nullish(),
     }),
   ),
+});
+
+/**
+ * @summary Get change history log
+ */
+export const GetHistoryQueryParams = zod.object({
+  limit: zod.coerce
+    .number()
+    .optional()
+    .describe("Max number of entries to return (default 200)"),
+});
+
+export const GetHistoryResponseItem = zod.object({
+  id: zod.number(),
+  createdAt: zod.string(),
+  changeType: zod.string(),
+  description: zod.string(),
+  metadata: zod.string(),
+});
+export const GetHistoryResponse = zod.array(GetHistoryResponseItem);
+
+/**
+ * @summary Clear all change history
+ */
+export const ClearHistoryResponse = zod.object({
+  deleted: zod.number(),
 });

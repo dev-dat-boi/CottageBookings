@@ -8,6 +8,7 @@
 import type { DayMultipliers } from "./dayMultipliers";
 import type { Holiday } from "./holiday";
 import type { Season } from "./season";
+import type { SettingsHolidaysByYear } from "./settingsHolidaysByYear";
 
 export interface Settings {
   basePrice: number;
@@ -15,4 +16,6 @@ export interface Settings {
   seasons: Season[];
   dayMultipliers: DayMultipliers;
   holidays: Holiday[];
+  /** Per-year holiday overrides keyed by year string (e.g. '2026') */
+  holidaysByYear?: SettingsHolidaysByYear;
 }
