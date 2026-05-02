@@ -23,6 +23,11 @@ export interface Holiday {
   endDate?: string | null;
 }
 
+export interface Owner {
+  name: string;
+  email: string;
+}
+
 export interface DayMultipliers {
   Monday: number;
   Tuesday: number;
@@ -46,6 +51,7 @@ export interface Settings {
   holidays: Holiday[];
   /** Per-year holiday overrides keyed by year string (e.g. '2026') */
   holidaysByYear?: SettingsHolidaysByYear;
+  owners?: Owner[];
 }
 
 export interface DayOverrideRequest {
@@ -102,6 +108,43 @@ export interface BookingResult {
   breakdown: CalendarEntry[];
 }
 
+export interface RentalEntry {
+  id: number;
+  createdAt: string;
+  renterName: string;
+  phone: string;
+  email: string;
+  startDate: string;
+  endDate: string;
+  nights: number;
+  totalPrice: number;
+  rateType: string;
+  extraDetails: string;
+  status: string;
+}
+
+export interface RentalInput {
+  renterName: string;
+  phone: string;
+  email: string;
+  startDate: string;
+  endDate: string;
+  nights: number;
+  totalPrice: number;
+  rateType: string;
+  extraDetails?: string;
+}
+
+export interface RentalPatch {
+  status?: string | null;
+  renterName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  extraDetails?: string | null;
+  sendOwnerEmail?: boolean | null;
+  sendRenterEmail?: boolean | null;
+}
+
 export interface ChangeHistoryEntry {
   id: number;
   createdAt: string;
@@ -119,6 +162,10 @@ export type GetCalendarParams = {
    * Last year to include (defaults to fromYear + 1)
    */
   toYear?: number;
+};
+
+export type DeleteRental200 = {
+  deleted: number;
 };
 
 export type GetHistoryParams = {

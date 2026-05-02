@@ -7,6 +7,7 @@
  */
 import type { DayMultipliers } from "./dayMultipliers";
 import type { Holiday } from "./holiday";
+import type { Owner } from "./owner";
 import type { Season } from "./season";
 import type { SettingsHolidaysByYear } from "./settingsHolidaysByYear";
 
@@ -18,4 +19,5 @@ export interface Settings {
   holidays: Holiday[];
   /** Per-year holiday overrides keyed by year string (e.g. '2026') */
   holidaysByYear?: SettingsHolidaysByYear;
+  owners?: Owner[];
 }

@@ -59,6 +59,14 @@ export const GetSettingsResponse = zod.object({
     )
     .optional()
     .describe("Per-year holiday overrides keyed by year string (e.g. '2026')"),
+  owners: zod
+    .array(
+      zod.object({
+        name: zod.string(),
+        email: zod.string(),
+      }),
+    )
+    .optional(),
 });
 
 /**
@@ -106,6 +114,14 @@ export const UpdateSettingsBody = zod.object({
     )
     .optional()
     .describe("Per-year holiday overrides keyed by year string (e.g. '2026')"),
+  owners: zod
+    .array(
+      zod.object({
+        name: zod.string(),
+        email: zod.string(),
+      }),
+    )
+    .optional(),
 });
 
 export const UpdateSettingsResponse = zod.object({
@@ -150,6 +166,14 @@ export const UpdateSettingsResponse = zod.object({
     )
     .optional()
     .describe("Per-year holiday overrides keyed by year string (e.g. '2026')"),
+  owners: zod
+    .array(
+      zod.object({
+        name: zod.string(),
+        email: zod.string(),
+      }),
+    )
+    .optional(),
 });
 
 /**
@@ -297,6 +321,105 @@ export const CalculateBookingResponse = zod.object({
       syncedHoliday: zod.string().nullish(),
     }),
   ),
+});
+
+/**
+ * @summary List all rentals
+ */
+export const GetRentalsResponseItem = zod.object({
+  id: zod.number(),
+  createdAt: zod.string(),
+  renterName: zod.string(),
+  phone: zod.string(),
+  email: zod.string(),
+  startDate: zod.string(),
+  endDate: zod.string(),
+  nights: zod.number(),
+  totalPrice: zod.number(),
+  rateType: zod.string(),
+  extraDetails: zod.string(),
+  status: zod.string(),
+});
+export const GetRentalsResponse = zod.array(GetRentalsResponseItem);
+
+/**
+ * @summary Create a new rental booking
+ */
+export const CreateRentalBody = zod.object({
+  renterName: zod.string(),
+  phone: zod.string(),
+  email: zod.string(),
+  startDate: zod.string(),
+  endDate: zod.string(),
+  nights: zod.number(),
+  totalPrice: zod.number(),
+  rateType: zod.string(),
+  extraDetails: zod.string().optional(),
+});
+
+/**
+ * @summary Get a single rental
+ */
+export const GetRentalParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetRentalResponse = zod.object({
+  id: zod.number(),
+  createdAt: zod.string(),
+  renterName: zod.string(),
+  phone: zod.string(),
+  email: zod.string(),
+  startDate: zod.string(),
+  endDate: zod.string(),
+  nights: zod.number(),
+  totalPrice: zod.number(),
+  rateType: zod.string(),
+  extraDetails: zod.string(),
+  status: zod.string(),
+});
+
+/**
+ * @summary Update a rental (status, details, etc.)
+ */
+export const UpdateRentalParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateRentalBody = zod.object({
+  status: zod.string().nullish(),
+  renterName: zod.string().nullish(),
+  phone: zod.string().nullish(),
+  email: zod.string().nullish(),
+  extraDetails: zod.string().nullish(),
+  sendOwnerEmail: zod.boolean().nullish(),
+  sendRenterEmail: zod.boolean().nullish(),
+});
+
+export const UpdateRentalResponse = zod.object({
+  id: zod.number(),
+  createdAt: zod.string(),
+  renterName: zod.string(),
+  phone: zod.string(),
+  email: zod.string(),
+  startDate: zod.string(),
+  endDate: zod.string(),
+  nights: zod.number(),
+  totalPrice: zod.number(),
+  rateType: zod.string(),
+  extraDetails: zod.string(),
+  status: zod.string(),
+});
+
+/**
+ * @summary Delete a rental
+ */
+export const DeleteRentalParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteRentalResponse = zod.object({
+  deleted: zod.number(),
 });
 
 /**

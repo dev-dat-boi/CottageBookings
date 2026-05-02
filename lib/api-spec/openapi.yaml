@@ -13,6 +13,7 @@ tags:
   - name: calendar
   - name: bookings
   - name: history
+  - name: rentals
 paths:
   /healthz:
     get:
@@ -165,6 +166,101 @@ paths:
               schema:
                 $ref: "#/components/schemas/BookingResult"
 
+  /rentals:
+    get:
+      operationId: getRentals
+      tags: [rentals]
+      summary: List all rentals
+      responses:
+        "200":
+          description: List of rentals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RentalEntry"
+    post:
+      operationId: createRental
+      tags: [rentals]
+      summary: Create a new rental booking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RentalInput"
+      responses:
+        "201":
+          description: Created rental
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalEntry"
+
+  /rentals/{id}:
+    get:
+      operationId: getRental
+      tags: [rentals]
+      summary: Get a single rental
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Rental detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalEntry"
+    patch:
+      operationId: updateRental
+      tags: [rentals]
+      summary: Update a rental (status, details, etc.)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RentalPatch"
+      responses:
+        "200":
+          description: Updated rental
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RentalEntry"
+    delete:
+      operationId: deleteRental
+      tags: [rentals]
+      summary: Delete a rental
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                required: [deleted]
+
   /history:
     get:
       operationId: getHistory
@@ -241,6 +337,15 @@ components:
           nullable: true
       required: [name, boost]
 
+    Owner:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+      required: [name, email]
+
     DayMultipliers:
       type: object
       properties:
@@ -277,6 +382,10 @@ components:
             items:
               $ref: "#/components/schemas/Holiday"
           description: "Per-year holiday overrides keyed by year string (e.g. '2026')"
+        owners:
+          type: array
+          items:
+            $ref: "#/components/schemas/Owner"
       required: [basePrice, familyRate, seasons, dayMultipliers, holidays]
 
     DayOverrideRequest:
@@ -389,6 +498,83 @@ components:
           items:
             $ref: "#/components/schemas/CalendarEntry"
       required: [startDate, endDate, nights, totalPrice, avgDailyRate, rateType, includeMultipliers, breakdown]
+
+    RentalEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        createdAt:
+          type: string
+        renterName:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        startDate:
+          type: string
+        endDate:
+          type: string
+        nights:
+          type: integer
+        totalPrice:
+          type: number
+        rateType:
+          type: string
+        extraDetails:
+          type: string
+        status:
+          type: string
+      required: [id, createdAt, renterName, phone, email, startDate, endDate, nights, totalPrice, rateType, extraDetails, status]
+
+    RentalInput:
+      type: object
+      properties:
+        renterName:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        startDate:
+          type: string
+        endDate:
+          type: string
+        nights:
+          type: integer
+        totalPrice:
+          type: number
+        rateType:
+          type: string
+        extraDetails:
+          type: string
+      required: [renterName, phone, email, startDate, endDate, nights, totalPrice, rateType]
+
+    RentalPatch:
+      type: object
+      properties:
+        status:
+          type: string
+          nullable: true
+        renterName:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        extraDetails:
+          type: string
+          nullable: true
+        sendOwnerEmail:
+          type: boolean
+          nullable: true
+        sendRenterEmail:
+          type: boolean
+          nullable: true
 
     ChangeHistoryEntry:
       type: object
