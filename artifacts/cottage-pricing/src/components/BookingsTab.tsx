@@ -222,7 +222,7 @@ export function BookingsTab() {
                   </Badge>
                   {result.rateType === "family" && (
                     <Badge variant="secondary" className="text-sm px-3 py-1">
-                      {result.includeMultipliers ? "Multipliers applied" : "Flat rate — no multipliers"}
+                      Multipliers applied
                     </Badge>
                   )}
                 </div>
@@ -478,7 +478,6 @@ function RateDialog({ open, onClose, onConfirm, standardRate, familyRate, family
   isLoggedIn: boolean;
 }) {
   const [selected, setSelected] = useState<RateType>("standard");
-  const [withMult, setWithMult] = useState(false);
   const [codeInput, setCodeInput] = useState("");
   const [codeError, setCodeError] = useState(false);
   const [codeUnlocked, setCodeUnlocked] = useState(false);
@@ -501,7 +500,6 @@ function RateDialog({ open, onClose, onConfirm, standardRate, familyRate, family
     setCodeError(false);
     setCodeUnlocked(false);
     setSelected("standard");
-    setWithMult(false);
     onClose();
   }
 
@@ -550,31 +548,10 @@ function RateDialog({ open, onClose, onConfirm, standardRate, familyRate, family
             </button>
           )}
 
-          {selected === "family" && familyVisible && (
-            <div className="ml-2 pl-3 border-l-2 border-primary/30 space-y-2">
-              <p className="text-sm font-medium text-foreground">Apply multipliers?</p>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setWithMult(false)}
-                  className={`flex-1 py-2 px-3 rounded-lg border text-sm transition-colors ${!withMult ? "bg-primary text-primary-foreground border-primary" : "border-border/40 hover:bg-muted/50"}`}
-                >
-                  Exclude — flat ${familyRate}/night
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setWithMult(true)}
-                  className={`flex-1 py-2 px-3 rounded-lg border text-sm transition-colors ${withMult ? "bg-primary text-primary-foreground border-primary" : "border-border/40 hover:bg-muted/50"}`}
-                >
-                  Include multipliers
-                </button>
-              </div>
-            </div>
-          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>Cancel</Button>
-          <Button onClick={() => onConfirm(selected, selected === "family" ? withMult : true)}>
+          <Button onClick={() => onConfirm(selected, true)}>
             Calculate
           </Button>
         </DialogFooter>

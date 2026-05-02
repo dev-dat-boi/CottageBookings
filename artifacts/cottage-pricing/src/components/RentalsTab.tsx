@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import {
   useGetRentals, useUpdateRental, useDeleteRental, getGetRentalsQueryKey,
   useGetRentalApprovals, useSetRentalApproval, getGetRentalApprovalsQueryKey,
+  useGetSettings, getGetSettingsQueryKey,
 } from "@workspace/api-client-react";
 import type { RentalEntry, OwnerApproval } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -21,6 +22,8 @@ import { useToast } from "@/hooks/use-toast";
 export function RentalsTab() {
   const { isLoggedIn, isAdmin } = useAuth();
   const { data: rentals, isLoading } = useGetRentals({ query: { queryKey: getGetRentalsQueryKey(), enabled: isLoggedIn } });
+  const { data: settings } = useGetSettings({ query: { queryKey: getGetSettingsQueryKey() } });
+  const familyRate = settings?.familyRate ?? null;
   const [selected, setSelected] = useState<RentalEntry | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<RentalEntry | null>(null);
 
@@ -72,7 +75,7 @@ export function RentalsTab() {
 
       {selected && (
         <RentalDetailDialog rental={selected} onClose={() => setSelected(null)}
-          onConfirmClick={(r) => { setSelected(null); setConfirmDialog(r); }} isAdmin={isAdmin} />
+          onConfirmClick={(r) => { setSelected(null); setConfirmDialog(r); }} isAdmin={isAdmin} familyRate={familyRate} />
       )}
       {confirmDialog && <ConfirmEmailDialog rental={confirmDialog} onClose={() => setConfirmDialog(null)} />}
     </div>
@@ -140,8 +143,8 @@ function RentalCard({ rental, onOpen, onConfirmClick, isAdmin }: {
   );
 }
 
-function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin }: {
-  rental: RentalEntry; onClose: () => void; onConfirmClick: (r: RentalEntry) => void; isAdmin: boolean;
+function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin, familyRate }: {
+  rental: RentalEntry; onClose: () => void; onConfirmClick: (r: RentalEntry) => void; isAdmin: boolean; familyRate: number | null;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -232,6 +235,12 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin }: {
             <Row label="Check-out" value={rental.endDate} />
             <Row label="Nights" value={String(rental.nights)} />
             <Row label="Estimated" value={`$${rental.totalPrice.toFixed(2)}`} />
+            {rental.rateType === "family" && familyRate != null && (
+              <div className="flex gap-3 text-sm">
+                <span className="text-muted-foreground font-medium w-24 shrink-0">Base (flat)</span>
+                <span className="text-muted-foreground">${(familyRate * rental.nights).toFixed(2)} <span className="text-xs">(no surge)</span></span>
+              </div>
+            )}
             {rental.agreedPrice != null && (
               <div className="flex gap-3 text-sm">
                 <span className="text-muted-foreground font-medium w-24 shrink-0">Agreed</span>
