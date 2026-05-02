@@ -343,6 +343,44 @@ router.patch("/rentals/:id/confirmations/:userId", requireAuth, async (req, res)
       result = updated[0];
     }
     res.json(confirmationRowToApi(result));
+
+    // After updating, check if ALL users for this rental have confirmed — auto-confirm if so
+    try {
+      const allConfs = await db.select().from(bookingConfirmationsTable)
+        .where(eq(bookingConfirmationsTable.rentalId, rentalId));
+      if (allConfs.length > 0 && allConfs.every(r => r.confirmed)) {
+        const rentalRows = await db.select().from(rentalsTable).where(eq(rentalsTable.id, rentalId));
+        if (
+          rentalRows.length > 0 &&
+          rentalRows[0].status !== "confirmed" &&
+          rentalRows[0].status !== "cancelled"
+        ) {
+          const updatedRentals = await db.update(rentalsTable)
+            .set({ status: "confirmed" })
+            .where(eq(rentalsTable.id, rentalId))
+            .returning();
+          if (updatedRentals.length > 0) {
+            const r = updatedRentals[0];
+            const ical = buildIcalDataUrl({ ...r, agreedPrice: r.agreedPrice ?? null });
+            if (r.email) {
+              const html = buildRentalEmailHtml({ ...rowToApi(r), agreedPrice: r.agreedPrice ?? null }, ical, true);
+              sendEmail({
+                to: [r.email],
+                subject: `Your Cottage Rental is Confirmed — ${r.startDate} to ${r.endDate}`,
+                html,
+              }).catch(() => {});
+            }
+            const owners = await getOwners();
+            const ownerEmails = owners.map(o => o.email).filter(Boolean);
+            if (ownerEmails.length > 0) {
+              const html = buildRentalEmailHtml({ ...rowToApi(r), agreedPrice: r.agreedPrice ?? null }, ical, false);
+              sendEmail({ to: ownerEmails, subject: `Rental Confirmed - ${r.renterName}`, html }).catch(() => {});
+            }
+          }
+        }
+      }
+    } catch {}
+
   } catch (err) {
     req.log.error({ err }, "Failed to set confirmation");
     res.status(500).json({ error: "Server error" });

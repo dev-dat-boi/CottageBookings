@@ -2,11 +2,10 @@ import { useState } from "react";
 import { format } from "date-fns";
 import {
   useGetRentals, useUpdateRental, useDeleteRental, getGetRentalsQueryKey,
-  useGetRentalApprovals, useSetRentalApproval, getGetRentalApprovalsQueryKey,
   useGetBookingConfirmations, useSetBookingConfirmation, getGetBookingConfirmationsQueryKey,
   useGetSettings, getGetSettingsQueryKey,
 } from "@workspace/api-client-react";
-import type { RentalEntry, OwnerApproval, BookingUserConfirmation } from "@workspace/api-client-react";
+import type { RentalEntry, BookingUserConfirmation } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, Phone, Mail, Calendar, Trash2, CheckCircle2, Clock, ChevronRight, Lock, ExternalLink, DollarSign, CheckCheck, UserCheck } from "lucide-react";
+import { Loader2, Phone, Mail, Calendar, Trash2, CheckCircle2, Clock, ChevronRight, Lock, ExternalLink, DollarSign, UserCheck, CalendarX } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function RentalsTab() {
@@ -86,6 +85,7 @@ export function RentalsTab() {
 function statusBadge(status: string) {
   if (status === "confirmed") return <Badge className="bg-green-100 text-green-700 border-green-200 hover:bg-green-100">Confirmed</Badge>;
   if (status === "pending_approval") return <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100"><Clock className="w-3 h-3 mr-1" />Pending Approval</Badge>;
+  if (status === "cancelled") return <Badge className="bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-100">Cancelled</Badge>;
   return <Badge className="bg-amber-100 text-amber-700 border-amber-200 hover:bg-amber-100">Submitted</Badge>;
 }
 
@@ -158,9 +158,7 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin, familyRa
     extraDetails: rental.extraDetails, agreedPrice: rental.agreedPrice != null ? String(rental.agreedPrice) : "",
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  const { data: approvals } = useGetRentalApprovals(rental.id, { query: { queryKey: getGetRentalApprovalsQueryKey(rental.id) } });
-  const approvalMutation = useSetRentalApproval();
+  const [showUnreserveConfirm, setShowUnreserveConfirm] = useState(false);
 
   const { data: confirmations } = useGetBookingConfirmations(rental.id, { query: { queryKey: getGetBookingConfirmationsQueryKey(rental.id) } });
   const confirmMutation = useSetBookingConfirmation();
@@ -183,29 +181,31 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin, familyRa
     });
   }
 
-  function handleApproval(ownerEmail: string, approved: boolean) {
-    approvalMutation.mutate(
-      { id: rental.id, ownerEmail: encodeURIComponent(ownerEmail), data: { approved } },
-      {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getGetRentalsQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getGetRentalApprovalsQueryKey(rental.id) });
-          toast({ title: approved ? "Approved" : "Approval removed" });
-        },
-        onError: () => toast({ title: "Error", description: "Failed", variant: "destructive" }),
-      }
-    );
-  }
-
   function handleConfirmation(targetUserId: number, confirmed: boolean) {
     confirmMutation.mutate(
       { id: rental.id, userId: targetUserId, data: { confirmed } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetBookingConfirmationsQueryKey(rental.id) });
+          queryClient.invalidateQueries({ queryKey: getGetRentalsQueryKey() });
           toast({ title: confirmed ? "Confirmed" : "Confirmation removed" });
         },
         onError: () => toast({ title: "Error", description: "Failed to update confirmation", variant: "destructive" }),
+      }
+    );
+  }
+
+  function handleUnreserve() {
+    updateMutation.mutate(
+      { id: rental.id, data: { status: "cancelled" } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetRentalsQueryKey() });
+          setShowUnreserveConfirm(false);
+          onClose();
+          toast({ title: "Booking cancelled", description: "Dates are now available again." });
+        },
+        onError: () => toast({ title: "Error", description: "Failed to cancel booking", variant: "destructive" }),
       }
     );
   }
@@ -270,23 +270,28 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin, familyRa
             <Row label="Rate Type" value={rental.bookingType === "personal" ? "Personal Use" : rental.rateType === "family" ? "Family Rate" : "Standard Rate"} />
             {rental.extraDetails && <Row label="Details" value={rental.extraDetails} />}
 
-            {/* Google Calendar link */}
-            <a href={buildGoogleCalendarUrl(rental)} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-sm text-primary hover:underline mt-2"
-              onClick={e => e.stopPropagation()}>
-              <ExternalLink className="w-3.5 h-3.5" /> Add to Google Calendar
-            </a>
+            {/* Google Calendar link — admin only */}
+            {isAdmin && (
+              <a href={buildGoogleCalendarUrl(rental)} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-sm text-primary hover:underline mt-2"
+                onClick={e => e.stopPropagation()}>
+                <ExternalLink className="w-3.5 h-3.5" /> Add to Google Calendar
+              </a>
+            )}
           </div>
         )}
 
-        {/* User Confirmations — visible to all logged-in users; admins can toggle any, others only own */}
+        {/* User Confirmations — all logged-in users see this; admin sees everyone, others see only own row */}
         {!editing && confirmations && confirmations.length > 0 && (
           <div className="border border-border/40 rounded-lg p-3 space-y-2 bg-sky-50/40 dark:bg-sky-950/10">
             <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-              <UserCheck className="w-3.5 h-3.5 text-sky-500" /> User Confirmations
-              <span className="ml-auto text-xs font-normal text-muted-foreground">
-                {confirmations.filter(c => c.confirmed).length}/{confirmations.length} confirmed
-              </span>
+              <UserCheck className="w-3.5 h-3.5 text-sky-500" />
+              {isAdmin ? "User Confirmations" : "My Confirmation"}
+              {isAdmin && (
+                <span className="ml-auto text-xs font-normal text-muted-foreground">
+                  {confirmations.filter(c => c.confirmed).length}/{confirmations.length} confirmed
+                </span>
+              )}
             </p>
             {confirmations.map(c => {
               const canEdit = isAdmin || (user?.id === c.userId);
@@ -294,7 +299,7 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin, familyRa
                 <div key={c.id} className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-foreground truncate">{c.userName || c.userEmail}</p>
-                    <p className="text-xs text-muted-foreground truncate">{c.userEmail}</p>
+                    {isAdmin && <p className="text-xs text-muted-foreground truncate">{c.userEmail}</p>}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {c.confirmed ? (
@@ -320,44 +325,23 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin, familyRa
           </div>
         )}
 
-        {/* Owner Approvals — admin-only */}
-        {!editing && isAdmin && rental.status === "pending_approval" && approvals && approvals.length > 0 && (
-          <div className="border border-border/40 rounded-lg p-3 space-y-2 bg-orange-50/40 dark:bg-orange-950/10">
-            <p className="text-xs font-semibold text-foreground flex items-center gap-1.5"><CheckCheck className="w-3.5 h-3.5 text-orange-500" /> Owner Approvals</p>
-            {approvals.map(a => (
-              <div key={a.id} className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-foreground truncate">{a.ownerName || a.ownerEmail}</p>
-                  <p className="text-xs text-muted-foreground truncate">{a.ownerEmail}</p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {a.approved ? (
-                    <Badge className="bg-green-100 text-green-700 border-green-200 text-xs hover:bg-green-100"><CheckCircle2 className="w-2.5 h-2.5 mr-1" />Approved</Badge>
-                  ) : (
-                    <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-xs hover:bg-orange-100"><Clock className="w-2.5 h-2.5 mr-1" />Pending</Badge>
-                  )}
-                  <Button variant="outline" size="sm" className="h-6 text-xs px-2"
-                    onClick={() => handleApproval(a.ownerEmail, !a.approved)} disabled={approvalMutation.isPending}>
-                    {a.approved ? "Revoke" : "Approve"}
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
         <DialogFooter className="flex-wrap gap-2 sm:flex-row">
           {!editing ? (
             <>
-              {/* Edit is available to all logged-in users */}
               <Button variant="outline" size="sm" onClick={() => setEditing(true)}>Edit</Button>
-              {/* Confirm (force-approve) is admin-only */}
+              {/* Force-confirm override — admin only, for pending/submitted rentals */}
               {canConfirm && isAdmin && (
                 <Button size="sm" onClick={() => { onClose(); onConfirmClick(rental); }} className="bg-green-600 hover:bg-green-700 text-white">
-                  <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Confirm
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Confirm Booking Now
                 </Button>
               )}
-              {/* Delete is admin-only */}
+              {/* Un-reserve (cancel) — admin only, for any non-cancelled booking */}
+              {isAdmin && rental.status !== "cancelled" && (
+                <Button variant="outline" size="sm" className="text-orange-600 border-orange-300 hover:bg-orange-50 hover:text-orange-700" onClick={() => setShowUnreserveConfirm(true)}>
+                  <CalendarX className="w-3.5 h-3.5 mr-1" /> Un-reserve
+                </Button>
+              )}
+              {/* Delete — admin only */}
               {isAdmin && (
                 <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => setShowDeleteConfirm(true)}>
                   <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
@@ -382,6 +366,24 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin, familyRa
               <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
               <Button variant="destructive" onClick={handleDelete} disabled={deleteMutation.isPending}>
                 {deleteMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Delete"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showUnreserveConfirm} onOpenChange={setShowUnreserveConfirm}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Un-reserve this booking?</DialogTitle>
+              <DialogDescription>
+                This will cancel <strong>{rental.renterName}</strong>'s booking ({rental.startDate} → {rental.endDate}) and free up those dates. The rental record will remain visible but marked as cancelled.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowUnreserveConfirm(false)}>Keep Booking</Button>
+              <Button variant="destructive" onClick={handleUnreserve} disabled={updateMutation.isPending}>
+                {updateMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <CalendarX className="w-3.5 h-3.5 mr-1" />}
+                Un-reserve
               </Button>
             </DialogFooter>
           </DialogContent>
