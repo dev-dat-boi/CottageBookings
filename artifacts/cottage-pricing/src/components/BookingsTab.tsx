@@ -111,65 +111,67 @@ export function BookingsTab() {
                 </div>
 
                 {/* Summary cards */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-card border border-border/40 p-6 rounded-xl text-center shadow-sm">
-                    <p className="text-sm text-muted-foreground font-medium mb-1">Total Nights</p>
-                    <p className="text-3xl font-bold text-foreground">{result.nights}</p>
+                <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                  <div className="bg-card border border-border/40 p-3 sm:p-6 rounded-xl text-center shadow-sm">
+                    <p className="text-xs sm:text-sm text-muted-foreground font-medium mb-1 leading-tight">Total Nights</p>
+                    <p className="text-xl sm:text-3xl font-bold text-foreground">{result.nights}</p>
                   </div>
-                  <div className="bg-card border border-border/40 p-6 rounded-xl text-center shadow-sm">
-                    <p className="text-sm text-muted-foreground font-medium mb-1">Total Price</p>
-                    <p className="text-3xl font-bold text-primary">${result.totalPrice.toFixed(2)}</p>
+                  <div className="bg-card border border-border/40 p-3 sm:p-6 rounded-xl text-center shadow-sm">
+                    <p className="text-xs sm:text-sm text-muted-foreground font-medium mb-1 leading-tight">Total Price</p>
+                    <p className="text-lg sm:text-3xl font-bold text-primary break-all">${result.totalPrice.toFixed(2)}</p>
                   </div>
-                  <div className="bg-card border border-border/40 p-6 rounded-xl text-center shadow-sm">
-                    <p className="text-sm text-muted-foreground font-medium mb-1">Avg Daily Rate</p>
-                    <p className="text-3xl font-bold text-foreground">${result.avgDailyRate.toFixed(2)}</p>
+                  <div className="bg-card border border-border/40 p-3 sm:p-6 rounded-xl text-center shadow-sm">
+                    <p className="text-xs sm:text-sm text-muted-foreground font-medium mb-1 leading-tight">Avg / Night</p>
+                    <p className="text-lg sm:text-3xl font-bold text-foreground break-all">${result.avgDailyRate.toFixed(2)}</p>
                   </div>
                 </div>
 
                 {/* Nightly breakdown */}
                 <div className="border border-border/40 rounded-xl overflow-hidden shadow-sm">
-                  <Table>
-                    <TableHeader className="bg-muted/30">
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Day</TableHead>
-                        <TableHead>Season</TableHead>
-                        <TableHead>Modifiers</TableHead>
-                        <TableHead className="text-right">Price</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {result.breakdown.map((entry) => (
-                        <TableRow key={entry.date}>
-                          <TableCell className="font-medium">{entry.date}</TableCell>
-                          <TableCell>{entry.dayOfWeek}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="bg-muted/50 font-normal border-border/50">
-                              {entry.season} ({(entry.seasonMult * 100).toFixed(0)}%)
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-2">
-                              {result.includeMultipliers && entry.dayMult !== 1 && (
-                                <Badge variant="secondary" className="font-normal">
-                                  Day: {((entry.dayMult - 1) * 100).toFixed(0)}%
-                                </Badge>
-                              )}
-                              {result.includeMultipliers && entry.holiday && (
-                                <Badge className="bg-accent text-accent-foreground font-normal hover:bg-accent">
-                                  {entry.holiday}: +{(entry.holidayBoost * 100).toFixed(0)}%
-                                </Badge>
-                              )}
-                              {(!result.includeMultipliers || (entry.dayMult === 1 && !entry.holiday)) && (
-                                <span className="text-sm text-muted-foreground">—</span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right font-bold">${entry.price.toFixed(2)}</TableCell>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader className="bg-muted/30">
+                        <TableRow>
+                          <TableHead className="whitespace-nowrap">Date</TableHead>
+                          <TableHead className="whitespace-nowrap">Day</TableHead>
+                          <TableHead className="whitespace-nowrap">Season</TableHead>
+                          <TableHead className="whitespace-nowrap">Modifiers</TableHead>
+                          <TableHead className="text-right whitespace-nowrap">Price</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {result.breakdown.map((entry) => (
+                          <TableRow key={entry.date}>
+                            <TableCell className="font-medium whitespace-nowrap">{entry.date}</TableCell>
+                            <TableCell className="whitespace-nowrap">{entry.dayOfWeek}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="bg-muted/50 font-normal border-border/50 whitespace-nowrap">
+                                {entry.season} ({(entry.seasonMult * 100).toFixed(0)}%)
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1.5">
+                                {result.includeMultipliers && entry.dayMult !== 1 && (
+                                  <Badge variant="secondary" className="font-normal whitespace-nowrap">
+                                    Day: {((entry.dayMult - 1) * 100).toFixed(0)}%
+                                  </Badge>
+                                )}
+                                {result.includeMultipliers && entry.holiday && (
+                                  <Badge className="bg-accent text-accent-foreground font-normal hover:bg-accent whitespace-nowrap">
+                                    {entry.holiday}: +{(entry.holidayBoost * 100).toFixed(0)}%
+                                  </Badge>
+                                )}
+                                {(!result.includeMultipliers || (entry.dayMult === 1 && !entry.holiday)) && (
+                                  <span className="text-sm text-muted-foreground">—</span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right font-bold whitespace-nowrap">${entry.price.toFixed(2)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
               </div>
             )}

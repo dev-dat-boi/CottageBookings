@@ -158,10 +158,10 @@ function HolidaysByYearSection({ control, form, disabled, defaultHolidays }: {
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <CalendarDays className="w-4 h-4" /> Holidays by Year
+              <CalendarDays className="w-4 h-4" /> Holidays
             </CardTitle>
             <CardDescription className="mt-0.5">
-              Customize holidays for specific years — dates change year to year. Each year inherits from Default until you override it.
+              Customize holidays per year — dates shift year to year. Click "Add Year" to add another year.
             </CardDescription>
           </div>
           {!disabled && (
@@ -368,13 +368,19 @@ export function ControlPanelTab() {
 
   useEffect(() => {
     if (settings) {
+      const defaultHols = settings.holidays ?? [];
+      const byYear = (settings.holidaysByYear as Record<string, any>) ?? {};
+      // Auto-port default holidays into 2026 if no year entries exist yet
+      const initialByYear = Object.keys(byYear).length === 0
+        ? { "2026": defaultHols.map((h: any) => ({ ...h })) }
+        : byYear;
       form.reset({
         basePrice: settings.basePrice,
         familyRate: settings.familyRate,
         seasons: settings.seasons ?? [],
         dayMultipliers: settings.dayMultipliers,
-        holidays: settings.holidays ?? [],
-        holidaysByYear: (settings.holidaysByYear as Record<string, any>) ?? {},
+        holidays: defaultHols,
+        holidaysByYear: initialByYear,
       });
     }
   }, [settings, form]);
@@ -471,26 +477,7 @@ export function ControlPanelTab() {
               </CardContent>
             </Card>
 
-            {/* Default Holidays */}
-            <Card className="border-border/40 shadow-sm md:col-span-2">
-              <CardHeader className="bg-muted/30 border-b border-border/40">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div><CardTitle>Default Holidays</CardTitle><CardDescription className="text-xs mt-0.5">Applied to all years unless overridden per-year below</CardDescription></div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-4 sm:p-6">
-                <HolidayEditor
-                  control={form.control}
-                  prefix="holidays"
-                  disabled={isLocked}
-                  append={appendHoliday}
-                  remove={removeHoliday}
-                  fields={holidayFields}
-                />
-              </CardContent>
-            </Card>
-
-            {/* Per-year holidays */}
+            {/* Holidays (by year) */}
             <HolidaysByYearSection
               control={form.control}
               form={form}
