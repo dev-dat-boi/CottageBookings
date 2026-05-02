@@ -7,12 +7,8 @@
  */
 
 export interface BookingRequest {
-  /** ISO date string (YYYY-MM-DD) */
   startDate: string;
-  /** ISO date string (YYYY-MM-DD) */
   endDate: string;
-  /** 'standard' or 'family' */
   rateType?: string | null;
-  /** When rateType is 'family', whether to apply multipliers */
   includeMultipliers?: boolean | null;
 }

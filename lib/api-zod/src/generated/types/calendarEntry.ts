@@ -7,7 +7,6 @@
  */
 
 export interface CalendarEntry {
-  /** ISO date string (YYYY-MM-DD) */
   date: string;
   dayOfWeek: string;
   season: string;
@@ -19,8 +18,9 @@ export interface CalendarEntry {
   finalPct: number;
   price: number;
   isOverridden: boolean;
-  /** Season name if this date falls within a season date range rule */
+  seasonIsOverridden: boolean;
+  holidayIsOverridden: boolean;
+  dayIsOverridden: boolean;
   syncedSeason?: string | null;
-  /** Holiday name if this date falls within a holiday date range rule */
   syncedHoliday?: string | null;
 }

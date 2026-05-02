@@ -19,8 +19,11 @@ import type {
 import type {
   BookingRequest,
   BookingResult,
+  BulkDaysRequest,
+  BulkDaysResult,
   CalendarEntry,
   DayOverrideRequest,
+  GetCalendarParams,
   HealthStatus,
   Settings,
 } from "./api.schemas";
@@ -269,43 +272,59 @@ export const useUpdateSettings = <
 };
 
 /**
- * @summary Get full calendar with computed daily prices
+ * @summary Get calendar with computed daily prices
  */
-export const getGetCalendarUrl = () => {
-  return `/api/calendar`;
+export const getGetCalendarUrl = (params?: GetCalendarParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/calendar?${stringifiedParams}`
+    : `/api/calendar`;
 };
 
 export const getCalendar = async (
+  params?: GetCalendarParams,
   options?: RequestInit,
 ): Promise<CalendarEntry[]> => {
-  return customFetch<CalendarEntry[]>(getGetCalendarUrl(), {
+  return customFetch<CalendarEntry[]>(getGetCalendarUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetCalendarQueryKey = () => {
-  return [`/api/calendar`] as const;
+export const getGetCalendarQueryKey = (params?: GetCalendarParams) => {
+  return [`/api/calendar`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetCalendarQueryOptions = <
   TData = Awaited<ReturnType<typeof getCalendar>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getCalendar>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
+>(
+  params?: GetCalendarParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCalendar>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetCalendarQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetCalendarQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getCalendar>>> = ({
     signal,
-  }) => getCalendar({ signal, ...requestOptions });
+  }) => getCalendar(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getCalendar>>,
@@ -320,21 +339,24 @@ export type GetCalendarQueryResult = NonNullable<
 export type GetCalendarQueryError = ErrorType<unknown>;
 
 /**
- * @summary Get full calendar with computed daily prices
+ * @summary Get calendar with computed daily prices
  */
 
 export function useGetCalendar<
   TData = Awaited<ReturnType<typeof getCalendar>>,
   TError = ErrorType<unknown>,
->(options?: {
-  query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getCalendar>>,
-    TError,
-    TData
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetCalendarQueryOptions(options);
+>(
+  params?: GetCalendarParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCalendar>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCalendarQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -342,6 +364,92 @@ export function useGetCalendar<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Apply sequential day-of-week overrides starting from a given day for all calendar entries
+ */
+export const getSetBulkDaysUrl = () => {
+  return `/api/calendar/bulk-days`;
+};
+
+export const setBulkDays = async (
+  bulkDaysRequest: BulkDaysRequest,
+  options?: RequestInit,
+): Promise<BulkDaysResult> => {
+  return customFetch<BulkDaysResult>(getSetBulkDaysUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(bulkDaysRequest),
+  });
+};
+
+export const getSetBulkDaysMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setBulkDays>>,
+    TError,
+    { data: BodyType<BulkDaysRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setBulkDays>>,
+  TError,
+  { data: BodyType<BulkDaysRequest> },
+  TContext
+> => {
+  const mutationKey = ["setBulkDays"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setBulkDays>>,
+    { data: BodyType<BulkDaysRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return setBulkDays(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetBulkDaysMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setBulkDays>>
+>;
+export type SetBulkDaysMutationBody = BodyType<BulkDaysRequest>;
+export type SetBulkDaysMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Apply sequential day-of-week overrides starting from a given day for all calendar entries
+ */
+export const useSetBulkDays = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setBulkDays>>,
+    TError,
+    { data: BodyType<BulkDaysRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setBulkDays>>,
+  TError,
+  { data: BodyType<BulkDaysRequest> },
+  TContext
+> => {
+  return useMutation(getSetBulkDaysMutationOptions(options));
+};
 
 /**
  * @summary Set per-day overrides for season, holiday, or day-of-week
@@ -515,7 +623,7 @@ export const useRemoveDayOverride = <
 };
 
 /**
- * @summary Calculate total price and average daily rate for a date range
+ * @summary Calculate total price and nightly breakdown for a date range
  */
 export const getCalculateBookingUrl = () => {
   return `/api/bookings/calculate`;
@@ -578,7 +686,7 @@ export type CalculateBookingMutationBody = BodyType<BookingRequest>;
 export type CalculateBookingMutationError = ErrorType<unknown>;
 
 /**
- * @summary Calculate total price and average daily rate for a date range
+ * @summary Calculate total price and nightly breakdown for a date range
  */
 export const useCalculateBooking = <
   TError = ErrorType<unknown>,

@@ -8,9 +8,12 @@
 
 export * from "./bookingRequest";
 export * from "./bookingResult";
+export * from "./bulkDaysRequest";
+export * from "./bulkDaysResult";
 export * from "./calendarEntry";
 export * from "./dayMultipliers";
 export * from "./dayOverrideRequest";
+export * from "./getCalendarParams";
 export * from "./healthStatus";
 export * from "./holiday";
 export * from "./season";

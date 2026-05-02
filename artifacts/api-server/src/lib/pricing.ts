@@ -3,15 +3,15 @@ import type { Settings } from "@workspace/db";
 export interface SeasonDef {
   name: string;
   multiplier: number;
-  startDate?: string | null; // MM-DD
-  endDate?: string | null;   // MM-DD
+  startDate?: string | null;
+  endDate?: string | null;
 }
 
 export interface HolidayDef {
   name: string;
   boost: number;
-  startDate?: string | null; // MM-DD
-  endDate?: string | null;   // MM-DD
+  startDate?: string | null;
+  endDate?: string | null;
 }
 
 export interface CalendarEntry {
@@ -26,6 +26,9 @@ export interface CalendarEntry {
   finalPct: number;
   price: number;
   isOverridden: boolean;
+  seasonIsOverridden: boolean;
+  holidayIsOverridden: boolean;
+  dayIsOverridden: boolean;
   syncedSeason: string | null;
   syncedHoliday: string | null;
 }
@@ -74,27 +77,17 @@ export function parseHolidays(json: string): HolidayDef[] {
   }
 }
 
-/**
- * Check whether a date (by its month+day) falls within a MM-DD range.
- * Handles wrap-around ranges like Dec-01 to Mar-31 (crosses year boundary).
- */
 function inMDRange(month: number, day: number, startMD: string, endMD: string): boolean {
   const [sm, sd] = startMD.split("-").map(Number);
   const [em, ed] = endMD.split("-").map(Number);
   const cur = month * 100 + day;
   const start = sm * 100 + sd;
   const end = em * 100 + ed;
-  if (start <= end) {
-    return cur >= start && cur <= end;
-  }
-  // wrap-around (e.g. Dec → Mar)
+  if (start <= end) return cur >= start && cur <= end;
   return cur >= start || cur <= end;
 }
 
-function resolveSeasonForDate(
-  d: Date,
-  seasons: SeasonDef[]
-): { season: string; synced: string | null } {
+function resolveSeasonForDate(d: Date, seasons: SeasonDef[]): { season: string; synced: string | null } {
   const month = d.getMonth() + 1;
   const day = d.getDate();
   for (const s of seasons) {
@@ -102,7 +95,6 @@ function resolveSeasonForDate(
       return { season: s.name, synced: s.name };
     }
   }
-  // Algorithmic fallback
   let name = "Low";
   if (month <= 3) name = "Winter";
   else if (month <= 5) name = "Spring";
@@ -111,19 +103,14 @@ function resolveSeasonForDate(
   return { season: name, synced: null };
 }
 
-function resolveHolidayForDate(
-  d: Date,
-  holidays: HolidayDef[]
-): { name: string; boost: number; synced: string | null } {
+function resolveHolidayForDate(d: Date, holidays: HolidayDef[]): { name: string; boost: number; synced: string | null } {
   const month = d.getMonth() + 1;
   const day = d.getDate();
-  // Check date-range rules first
   for (const h of holidays) {
     if (h.startDate && h.endDate && inMDRange(month, day, h.startDate, h.endDate)) {
       return { name: h.name, boost: h.boost, synced: h.name };
     }
   }
-  // Built-in algorithmic holidays
   const year = d.getFullYear();
   const holidayMap: Record<string, boolean> = {};
   if (month === 1 && day === 1) holidayMap["New Year"] = true;
@@ -180,37 +167,55 @@ export function computeEntry(
   includeMultipliers = true
 ): CalendarEntry {
   const naturalDay = DAYS[d.getDay()];
-  const dayOfWeek = override?.dayOverride ?? naturalDay;
 
-  const { season: resolvedSeason, synced: syncedSeason } = resolveSeasonForDate(d, seasons);
-  const season = override?.seasonOverride ?? resolvedSeason;
+  // --- Per-field override flags ---
+  const hasOverrideRow = override !== null && override !== undefined;
+  const seasonIsOverridden = hasOverrideRow && override!.seasonOverride !== null;
+  // holidayIsOverridden is true for any non-null value, including "" (suppress sentinel)
+  const holidayIsOverridden = hasOverrideRow && override!.holidayOverride !== null;
+  const dayIsOverridden = hasOverrideRow && override!.dayOverride !== null;
+
+  // --- Day ---
+  const dayOfWeek = dayIsOverridden ? override!.dayOverride! : naturalDay;
+
+  // --- Season ---
+  const { season: resolvedSeason, synced: syncedSeasonRaw } = resolveSeasonForDate(d, seasons);
+  const season = seasonIsOverridden ? override!.seasonOverride! : resolvedSeason;
   const seasonMult = getSeasonMult(season, seasons);
-  const dayMult = getDayMult(dayOfWeek, s);
+  const syncedSeason = seasonIsOverridden ? null : syncedSeasonRaw;
 
-  const { name: resolvedHoliday, boost: resolvedBoost, synced: syncedHoliday } = resolveHolidayForDate(d, holidays);
+  // --- Holiday ---
+  // "" means "explicitly suppress holiday" (no boost, no highlight)
   let holiday = "";
   let holidayBoost = 0;
-  if (override?.holidayOverride !== undefined && override.holidayOverride !== null) {
-    holiday = override.holidayOverride;
+  let syncedHoliday: string | null = null;
+
+  if (holidayIsOverridden) {
+    holiday = override!.holidayOverride!; // could be "" (suppress) or a name
     const h = holidays.find(h => h.name === holiday);
     holidayBoost = h?.boost ?? 0;
+    syncedHoliday = null;
   } else {
-    holiday = resolvedHoliday;
-    holidayBoost = resolvedBoost;
+    const resolved = resolveHolidayForDate(d, holidays);
+    holiday = resolved.name;
+    holidayBoost = resolved.boost;
+    syncedHoliday = resolved.synced;
   }
 
+  // --- Price ---
+  const dayMult = getDayMult(dayOfWeek, s);
   const demandAdj = 0;
+  const finalPct = seasonMult * dayMult + holidayBoost + demandAdj;
   const basePrice = rateType === "family" ? s.familyRate : s.basePrice;
   let price: number;
   if (rateType === "family" && !includeMultipliers) {
     price = s.familyRate;
   } else {
-    const finalPct = seasonMult * dayMult + holidayBoost + demandAdj;
     price = Math.max(basePrice, basePrice * finalPct);
   }
 
-  const finalPct = seasonMult * dayMult + holidayBoost + demandAdj;
-  const isOverridden = !!(override?.seasonOverride || override?.holidayOverride !== undefined || override?.dayOverride);
+  // Row is "meaningfully" overridden (amber) only for real changes, not "" suppress
+  const isOverridden = seasonIsOverridden || dayIsOverridden || (holidayIsOverridden && override!.holidayOverride !== "");
 
   return {
     date: d.toISOString().slice(0, 10),
@@ -224,8 +229,11 @@ export function computeEntry(
     finalPct,
     price: Math.round(price * 100) / 100,
     isOverridden,
-    syncedSeason: override?.seasonOverride ? null : syncedSeason,
-    syncedHoliday: override?.holidayOverride !== undefined ? null : syncedHoliday,
+    seasonIsOverridden,
+    holidayIsOverridden,
+    dayIsOverridden,
+    syncedSeason,
+    syncedHoliday,
   };
 }
 
@@ -234,12 +242,14 @@ export function generateCalendar(
   seasons: SeasonDef[],
   holidays: HolidayDef[],
   overrides: Map<string, Override>,
-  years = 2
+  fromYear?: number,
+  toYear?: number
 ): CalendarEntry[] {
+  const defaultYear = new Date().getFullYear();
+  const startYear = fromYear ?? defaultYear;
+  const endYear = toYear ?? (startYear + 1);
   const entries: CalendarEntry[] = [];
-  const startYear = new Date().getFullYear();
-  for (let y = 0; y < years; y++) {
-    const year = startYear + y;
+  for (let year = startYear; year <= endYear; year++) {
     const start = new Date(year, 0, 1);
     const end = new Date(year + 1, 0, 1);
     for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {

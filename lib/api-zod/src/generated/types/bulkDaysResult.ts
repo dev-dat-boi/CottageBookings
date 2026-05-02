@@ -6,9 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface Season {
-  name: string;
-  multiplier: number;
-  startDate?: string | null;
-  endDate?: string | null;
+export interface BulkDaysResult {
+  updated: number;
 }

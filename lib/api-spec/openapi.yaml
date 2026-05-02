@@ -9,13 +9,9 @@ servers:
     description: Base API path
 tags:
   - name: health
-    description: Health operations
   - name: settings
-    description: Control panel settings
   - name: calendar
-    description: Calendar with daily prices
   - name: bookings
-    description: Booking price calculator
 paths:
   /healthz:
     get:
@@ -64,7 +60,20 @@ paths:
     get:
       operationId: getCalendar
       tags: [calendar]
-      summary: Get full calendar with computed daily prices
+      summary: Get calendar with computed daily prices
+      parameters:
+        - name: fromYear
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: First year to include (defaults to current year)
+        - name: toYear
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Last year to include (defaults to fromYear + 1)
       responses:
         "200":
           description: List of calendar entries
@@ -74,6 +83,25 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/CalendarEntry"
+
+  /calendar/bulk-days:
+    post:
+      operationId: setBulkDays
+      tags: [calendar]
+      summary: Apply sequential day-of-week overrides starting from a given day for all calendar entries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkDaysRequest"
+      responses:
+        "200":
+          description: Number of entries updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkDaysResult"
 
   /calendar/{date}/override:
     put:
@@ -86,7 +114,6 @@ paths:
           required: true
           schema:
             type: string
-          description: ISO date (YYYY-MM-DD)
       requestBody:
         required: true
         content:
@@ -122,7 +149,7 @@ paths:
     post:
       operationId: calculateBooking
       tags: [bookings]
-      summary: Calculate total price and average daily rate for a date range
+      summary: Calculate total price and nightly breakdown for a date range
       requestBody:
         required: true
         content:
@@ -155,11 +182,9 @@ components:
           type: number
         startDate:
           type: string
-          description: "Recurring start date in MM-DD format (e.g. 12-01)"
           nullable: true
         endDate:
           type: string
-          description: "Recurring end date in MM-DD format (e.g. 03-31)"
           nullable: true
       required: [name, multiplier]
 
@@ -172,31 +197,22 @@ components:
           type: number
         startDate:
           type: string
-          description: "Recurring start date in MM-DD format (e.g. 07-14)"
           nullable: true
         endDate:
           type: string
-          description: "Recurring end date in MM-DD format (e.g. 07-27)"
           nullable: true
       required: [name, boost]
 
     DayMultipliers:
       type: object
       properties:
-        Monday:
-          type: number
-        Tuesday:
-          type: number
-        Wednesday:
-          type: number
-        Thursday:
-          type: number
-        Friday:
-          type: number
-        Saturday:
-          type: number
-        Sunday:
-          type: number
+        Monday: { type: number }
+        Tuesday: { type: number }
+        Wednesday: { type: number }
+        Thursday: { type: number }
+        Friday: { type: number }
+        Saturday: { type: number }
+        Sunday: { type: number }
       required: [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
 
     Settings:
@@ -206,7 +222,6 @@ components:
           type: number
         familyRate:
           type: number
-          description: "Flat nightly rate for family bookings"
         seasons:
           type: array
           items:
@@ -232,12 +247,32 @@ components:
           type: string
           nullable: true
 
+    BulkDaysRequest:
+      type: object
+      properties:
+        startDay:
+          type: string
+          description: "Day name to assign to the first calendar entry (e.g. Monday)"
+        fromYear:
+          type: integer
+          nullable: true
+        toYear:
+          type: integer
+          nullable: true
+      required: [startDay]
+
+    BulkDaysResult:
+      type: object
+      properties:
+        updated:
+          type: integer
+      required: [updated]
+
     CalendarEntry:
       type: object
       properties:
         date:
           type: string
-          description: ISO date string (YYYY-MM-DD)
         dayOfWeek:
           type: string
         season:
@@ -258,32 +293,32 @@ components:
           type: number
         isOverridden:
           type: boolean
+        seasonIsOverridden:
+          type: boolean
+        holidayIsOverridden:
+          type: boolean
+        dayIsOverridden:
+          type: boolean
         syncedSeason:
           type: string
           nullable: true
-          description: "Season name if this date falls within a season date range rule"
         syncedHoliday:
           type: string
           nullable: true
-          description: "Holiday name if this date falls within a holiday date range rule"
-      required: [date, dayOfWeek, season, seasonMult, dayMult, holiday, holidayBoost, demandAdj, finalPct, price, isOverridden]
+      required: [date, dayOfWeek, season, seasonMult, dayMult, holiday, holidayBoost, demandAdj, finalPct, price, isOverridden, seasonIsOverridden, holidayIsOverridden, dayIsOverridden]
 
     BookingRequest:
       type: object
       properties:
         startDate:
           type: string
-          description: ISO date string (YYYY-MM-DD)
         endDate:
           type: string
-          description: ISO date string (YYYY-MM-DD)
         rateType:
           type: string
-          description: "'standard' or 'family'"
           nullable: true
         includeMultipliers:
           type: boolean
-          description: "When rateType is 'family', whether to apply multipliers"
           nullable: true
       required: [startDate, endDate]
 

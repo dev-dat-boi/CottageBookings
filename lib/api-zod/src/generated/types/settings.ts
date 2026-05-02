@@ -11,7 +11,6 @@ import type { Season } from "./season";
 
 export interface Settings {
   basePrice: number;
-  /** Flat nightly rate for family bookings */
   familyRate: number;
   seasons: Season[];
   dayMultipliers: DayMultipliers;

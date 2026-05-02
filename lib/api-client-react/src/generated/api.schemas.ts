@@ -12,18 +12,14 @@ export interface HealthStatus {
 export interface Season {
   name: string;
   multiplier: number;
-  /** Recurring start date in MM-DD format (e.g. 12-01) */
   startDate?: string | null;
-  /** Recurring end date in MM-DD format (e.g. 03-31) */
   endDate?: string | null;
 }
 
 export interface Holiday {
   name: string;
   boost: number;
-  /** Recurring start date in MM-DD format (e.g. 07-14) */
   startDate?: string | null;
-  /** Recurring end date in MM-DD format (e.g. 07-27) */
   endDate?: string | null;
 }
 
@@ -39,7 +35,6 @@ export interface DayMultipliers {
 
 export interface Settings {
   basePrice: number;
-  /** Flat nightly rate for family bookings */
   familyRate: number;
   seasons: Season[];
   dayMultipliers: DayMultipliers;
@@ -52,8 +47,18 @@ export interface DayOverrideRequest {
   dayOverride?: string | null;
 }
 
+export interface BulkDaysRequest {
+  /** Day name to assign to the first calendar entry (e.g. Monday) */
+  startDay: string;
+  fromYear?: number | null;
+  toYear?: number | null;
+}
+
+export interface BulkDaysResult {
+  updated: number;
+}
+
 export interface CalendarEntry {
-  /** ISO date string (YYYY-MM-DD) */
   date: string;
   dayOfWeek: string;
   season: string;
@@ -65,20 +70,17 @@ export interface CalendarEntry {
   finalPct: number;
   price: number;
   isOverridden: boolean;
-  /** Season name if this date falls within a season date range rule */
+  seasonIsOverridden: boolean;
+  holidayIsOverridden: boolean;
+  dayIsOverridden: boolean;
   syncedSeason?: string | null;
-  /** Holiday name if this date falls within a holiday date range rule */
   syncedHoliday?: string | null;
 }
 
 export interface BookingRequest {
-  /** ISO date string (YYYY-MM-DD) */
   startDate: string;
-  /** ISO date string (YYYY-MM-DD) */
   endDate: string;
-  /** 'standard' or 'family' */
   rateType?: string | null;
-  /** When rateType is 'family', whether to apply multipliers */
   includeMultipliers?: boolean | null;
 }
 
@@ -92,3 +94,14 @@ export interface BookingResult {
   includeMultipliers: boolean;
   breakdown: CalendarEntry[];
 }
+
+export type GetCalendarParams = {
+  /**
+   * First year to include (defaults to current year)
+   */
+  fromYear?: number;
+  /**
+   * Last year to include (defaults to fromYear + 1)
+   */
+  toYear?: number;
+};
