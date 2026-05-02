@@ -19,4 +19,8 @@ export interface CalendarEntry {
   finalPct: number;
   price: number;
   isOverridden: boolean;
+  /** Season name if this date falls within a season date range rule */
+  syncedSeason?: string | null;
+  /** Holiday name if this date falls within a holiday date range rule */
+  syncedHoliday?: string | null;
 }

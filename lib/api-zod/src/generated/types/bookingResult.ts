@@ -13,5 +13,7 @@ export interface BookingResult {
   nights: number;
   totalPrice: number;
   avgDailyRate: number;
+  rateType: string;
+  includeMultipliers: boolean;
   breakdown: CalendarEntry[];
 }

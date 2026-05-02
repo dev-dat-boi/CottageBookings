@@ -19,10 +19,19 @@ export const HealthCheckResponse = zod.object({
  */
 export const GetSettingsResponse = zod.object({
   basePrice: zod.number(),
+  familyRate: zod.number().describe("Flat nightly rate for family bookings"),
   seasons: zod.array(
     zod.object({
       name: zod.string(),
       multiplier: zod.number(),
+      startDate: zod
+        .string()
+        .nullish()
+        .describe("Recurring start date in MM-DD format (e.g. 12-01)"),
+      endDate: zod
+        .string()
+        .nullish()
+        .describe("Recurring end date in MM-DD format (e.g. 03-31)"),
     }),
   ),
   dayMultipliers: zod.object({
@@ -38,6 +47,14 @@ export const GetSettingsResponse = zod.object({
     zod.object({
       name: zod.string(),
       boost: zod.number(),
+      startDate: zod
+        .string()
+        .nullish()
+        .describe("Recurring start date in MM-DD format (e.g. 07-14)"),
+      endDate: zod
+        .string()
+        .nullish()
+        .describe("Recurring end date in MM-DD format (e.g. 07-27)"),
     }),
   ),
 });
@@ -47,10 +64,19 @@ export const GetSettingsResponse = zod.object({
  */
 export const UpdateSettingsBody = zod.object({
   basePrice: zod.number(),
+  familyRate: zod.number().describe("Flat nightly rate for family bookings"),
   seasons: zod.array(
     zod.object({
       name: zod.string(),
       multiplier: zod.number(),
+      startDate: zod
+        .string()
+        .nullish()
+        .describe("Recurring start date in MM-DD format (e.g. 12-01)"),
+      endDate: zod
+        .string()
+        .nullish()
+        .describe("Recurring end date in MM-DD format (e.g. 03-31)"),
     }),
   ),
   dayMultipliers: zod.object({
@@ -66,16 +92,33 @@ export const UpdateSettingsBody = zod.object({
     zod.object({
       name: zod.string(),
       boost: zod.number(),
+      startDate: zod
+        .string()
+        .nullish()
+        .describe("Recurring start date in MM-DD format (e.g. 07-14)"),
+      endDate: zod
+        .string()
+        .nullish()
+        .describe("Recurring end date in MM-DD format (e.g. 07-27)"),
     }),
   ),
 });
 
 export const UpdateSettingsResponse = zod.object({
   basePrice: zod.number(),
+  familyRate: zod.number().describe("Flat nightly rate for family bookings"),
   seasons: zod.array(
     zod.object({
       name: zod.string(),
       multiplier: zod.number(),
+      startDate: zod
+        .string()
+        .nullish()
+        .describe("Recurring start date in MM-DD format (e.g. 12-01)"),
+      endDate: zod
+        .string()
+        .nullish()
+        .describe("Recurring end date in MM-DD format (e.g. 03-31)"),
     }),
   ),
   dayMultipliers: zod.object({
@@ -91,6 +134,14 @@ export const UpdateSettingsResponse = zod.object({
     zod.object({
       name: zod.string(),
       boost: zod.number(),
+      startDate: zod
+        .string()
+        .nullish()
+        .describe("Recurring start date in MM-DD format (e.g. 07-14)"),
+      endDate: zod
+        .string()
+        .nullish()
+        .describe("Recurring end date in MM-DD format (e.g. 07-27)"),
     }),
   ),
 });
@@ -110,6 +161,16 @@ export const GetCalendarResponseItem = zod.object({
   finalPct: zod.number(),
   price: zod.number(),
   isOverridden: zod.boolean(),
+  syncedSeason: zod
+    .string()
+    .nullish()
+    .describe("Season name if this date falls within a season date range rule"),
+  syncedHoliday: zod
+    .string()
+    .nullish()
+    .describe(
+      "Holiday name if this date falls within a holiday date range rule",
+    ),
 });
 export const GetCalendarResponse = zod.array(GetCalendarResponseItem);
 
@@ -138,6 +199,16 @@ export const SetDayOverrideResponse = zod.object({
   finalPct: zod.number(),
   price: zod.number(),
   isOverridden: zod.boolean(),
+  syncedSeason: zod
+    .string()
+    .nullish()
+    .describe("Season name if this date falls within a season date range rule"),
+  syncedHoliday: zod
+    .string()
+    .nullish()
+    .describe(
+      "Holiday name if this date falls within a holiday date range rule",
+    ),
 });
 
 /**
@@ -159,6 +230,16 @@ export const RemoveDayOverrideResponse = zod.object({
   finalPct: zod.number(),
   price: zod.number(),
   isOverridden: zod.boolean(),
+  syncedSeason: zod
+    .string()
+    .nullish()
+    .describe("Season name if this date falls within a season date range rule"),
+  syncedHoliday: zod
+    .string()
+    .nullish()
+    .describe(
+      "Holiday name if this date falls within a holiday date range rule",
+    ),
 });
 
 /**
@@ -167,6 +248,11 @@ export const RemoveDayOverrideResponse = zod.object({
 export const CalculateBookingBody = zod.object({
   startDate: zod.string().describe("ISO date string (YYYY-MM-DD)"),
   endDate: zod.string().describe("ISO date string (YYYY-MM-DD)"),
+  rateType: zod.string().nullish().describe("'standard' or 'family'"),
+  includeMultipliers: zod
+    .boolean()
+    .nullish()
+    .describe("When rateType is 'family', whether to apply multipliers"),
 });
 
 export const CalculateBookingResponse = zod.object({
@@ -175,6 +261,8 @@ export const CalculateBookingResponse = zod.object({
   nights: zod.number(),
   totalPrice: zod.number(),
   avgDailyRate: zod.number(),
+  rateType: zod.string(),
+  includeMultipliers: zod.boolean(),
   breakdown: zod.array(
     zod.object({
       date: zod.string().describe("ISO date string (YYYY-MM-DD)"),
@@ -188,6 +276,18 @@ export const CalculateBookingResponse = zod.object({
       finalPct: zod.number(),
       price: zod.number(),
       isOverridden: zod.boolean(),
+      syncedSeason: zod
+        .string()
+        .nullish()
+        .describe(
+          "Season name if this date falls within a season date range rule",
+        ),
+      syncedHoliday: zod
+        .string()
+        .nullish()
+        .describe(
+          "Holiday name if this date falls within a holiday date range rule",
+        ),
     }),
   ),
 });

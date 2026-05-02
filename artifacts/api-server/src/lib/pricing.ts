@@ -1,7 +1,18 @@
 import type { Settings } from "@workspace/db";
 
-export interface SeasonDef { name: string; multiplier: number }
-export interface HolidayDef { name: string; boost: number }
+export interface SeasonDef {
+  name: string;
+  multiplier: number;
+  startDate?: string | null; // MM-DD
+  endDate?: string | null;   // MM-DD
+}
+
+export interface HolidayDef {
+  name: string;
+  boost: number;
+  startDate?: string | null; // MM-DD
+  endDate?: string | null;   // MM-DD
+}
 
 export interface CalendarEntry {
   date: string;
@@ -15,6 +26,8 @@ export interface CalendarEntry {
   finalPct: number;
   price: number;
   isOverridden: boolean;
+  syncedSeason: string | null;
+  syncedHoliday: string | null;
 }
 
 export interface Override {
@@ -61,12 +74,83 @@ export function parseHolidays(json: string): HolidayDef[] {
   }
 }
 
-function getDefaultSeason(month: number): string {
-  if (month <= 3) return "Winter";
-  if (month <= 5) return "Spring";
-  if (month <= 8) return "Summer";
-  if (month <= 10) return "Fall";
-  return "Low";
+/**
+ * Check whether a date (by its month+day) falls within a MM-DD range.
+ * Handles wrap-around ranges like Dec-01 to Mar-31 (crosses year boundary).
+ */
+function inMDRange(month: number, day: number, startMD: string, endMD: string): boolean {
+  const [sm, sd] = startMD.split("-").map(Number);
+  const [em, ed] = endMD.split("-").map(Number);
+  const cur = month * 100 + day;
+  const start = sm * 100 + sd;
+  const end = em * 100 + ed;
+  if (start <= end) {
+    return cur >= start && cur <= end;
+  }
+  // wrap-around (e.g. Dec → Mar)
+  return cur >= start || cur <= end;
+}
+
+function resolveSeasonForDate(
+  d: Date,
+  seasons: SeasonDef[]
+): { season: string; synced: string | null } {
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  for (const s of seasons) {
+    if (s.startDate && s.endDate && inMDRange(month, day, s.startDate, s.endDate)) {
+      return { season: s.name, synced: s.name };
+    }
+  }
+  // Algorithmic fallback
+  let name = "Low";
+  if (month <= 3) name = "Winter";
+  else if (month <= 5) name = "Spring";
+  else if (month <= 8) name = "Summer";
+  else if (month <= 10) name = "Fall";
+  return { season: name, synced: null };
+}
+
+function resolveHolidayForDate(
+  d: Date,
+  holidays: HolidayDef[]
+): { name: string; boost: number; synced: string | null } {
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  // Check date-range rules first
+  for (const h of holidays) {
+    if (h.startDate && h.endDate && inMDRange(month, day, h.startDate, h.endDate)) {
+      return { name: h.name, boost: h.boost, synced: h.name };
+    }
+  }
+  // Built-in algorithmic holidays
+  const year = d.getFullYear();
+  const holidayMap: Record<string, boolean> = {};
+  if (month === 1 && day === 1) holidayMap["New Year"] = true;
+  if (month === 6 && day === 24) holidayMap["St-Jean"] = true;
+  if (month === 7 && day === 1) holidayMap["Canada Day"] = true;
+  if (month === 7 && day >= 14 && day <= 27) holidayMap["Construction Holiday"] = true;
+  const laborDay = firstMonday(year, 9);
+  if (month === 9 && day === laborDay.getDate()) holidayMap["Labor Day"] = true;
+  const thanksgiving = nthMonday(year, 10, 2);
+  if (month === 10 && day === thanksgiving.getDate()) holidayMap["Thanksgiving"] = true;
+  if (month === 12 && day === 25) holidayMap["Christmas"] = true;
+  for (const h of holidays) {
+    if (holidayMap[h.name]) return { name: h.name, boost: h.boost, synced: null };
+  }
+  return { name: "", boost: 0, synced: null };
+}
+
+function firstMonday(year: number, month: number): Date {
+  const d = new Date(year, month - 1, 1);
+  const day = d.getDay();
+  const offset = day === 1 ? 0 : day === 0 ? 1 : 8 - day;
+  return new Date(year, month - 1, 1 + offset);
+}
+
+function nthMonday(year: number, month: number, n: number): Date {
+  const first = firstMonday(year, month);
+  return new Date(year, month - 1, first.getDate() + (n - 1) * 7);
 }
 
 function getSeasonMult(seasonName: string, seasons: SeasonDef[]): number {
@@ -86,63 +170,24 @@ function getDayMult(dayName: string, s: Settings): number {
   }
 }
 
-function firstMonday(year: number, month: number): Date {
-  const d = new Date(year, month - 1, 1);
-  const day = d.getDay();
-  const offset = day === 1 ? 0 : day === 0 ? 1 : 8 - day;
-  return new Date(year, month - 1, 1 + offset);
-}
-
-function nthMonday(year: number, month: number, n: number): Date {
-  const first = firstMonday(year, month);
-  return new Date(year, month - 1, first.getDate() + (n - 1) * 7);
-}
-
-function getDefaultHoliday(d: Date, holidays: HolidayDef[]): { name: string; boost: number } {
-  const year = d.getFullYear();
-  const month = d.getMonth() + 1;
-  const day = d.getDate();
-
-  const holidayMap: Record<string, boolean> = {};
-
-  // New Year: Jan 1
-  if (month === 1 && day === 1) holidayMap["New Year"] = true;
-  // St-Jean: Jun 24
-  if (month === 6 && day === 24) holidayMap["St-Jean"] = true;
-  // Canada Day: Jul 1
-  if (month === 7 && day === 1) holidayMap["Canada Day"] = true;
-  // Construction Holiday: ~Jul 14–27
-  if (month === 7 && day >= 14 && day <= 27) holidayMap["Construction Holiday"] = true;
-  // Labor Day: first Monday of September
-  const laborDay = firstMonday(year, 9);
-  if (month === 9 && day === laborDay.getDate()) holidayMap["Labor Day"] = true;
-  // Thanksgiving: second Monday of October (Canadian)
-  const thanksgiving = nthMonday(year, 10, 2);
-  if (month === 10 && day === thanksgiving.getDate()) holidayMap["Thanksgiving"] = true;
-  // Christmas: Dec 25
-  if (month === 12 && day === 25) holidayMap["Christmas"] = true;
-
-  for (const h of holidays) {
-    if (holidayMap[h.name]) return { name: h.name, boost: h.boost };
-  }
-  return { name: "", boost: 0 };
-}
-
 export function computeEntry(
   d: Date,
   s: Settings,
   seasons: SeasonDef[],
   holidays: HolidayDef[],
-  override?: Override | null
+  override?: Override | null,
+  rateType: "standard" | "family" = "standard",
+  includeMultipliers = true
 ): CalendarEntry {
-  const month = d.getMonth() + 1;
   const naturalDay = DAYS[d.getDay()];
-
   const dayOfWeek = override?.dayOverride ?? naturalDay;
-  const season = override?.seasonOverride ?? getDefaultSeason(month);
+
+  const { season: resolvedSeason, synced: syncedSeason } = resolveSeasonForDate(d, seasons);
+  const season = override?.seasonOverride ?? resolvedSeason;
   const seasonMult = getSeasonMult(season, seasons);
   const dayMult = getDayMult(dayOfWeek, s);
 
+  const { name: resolvedHoliday, boost: resolvedBoost, synced: syncedHoliday } = resolveHolidayForDate(d, holidays);
   let holiday = "";
   let holidayBoost = 0;
   if (override?.holidayOverride !== undefined && override.holidayOverride !== null) {
@@ -150,14 +195,21 @@ export function computeEntry(
     const h = holidays.find(h => h.name === holiday);
     holidayBoost = h?.boost ?? 0;
   } else {
-    const computed = getDefaultHoliday(d, holidays);
-    holiday = computed.name;
-    holidayBoost = computed.boost;
+    holiday = resolvedHoliday;
+    holidayBoost = resolvedBoost;
   }
 
   const demandAdj = 0;
+  const basePrice = rateType === "family" ? s.familyRate : s.basePrice;
+  let price: number;
+  if (rateType === "family" && !includeMultipliers) {
+    price = s.familyRate;
+  } else {
+    const finalPct = seasonMult * dayMult + holidayBoost + demandAdj;
+    price = Math.max(basePrice, basePrice * finalPct);
+  }
+
   const finalPct = seasonMult * dayMult + holidayBoost + demandAdj;
-  const price = Math.max(s.basePrice, s.basePrice * finalPct);
   const isOverridden = !!(override?.seasonOverride || override?.holidayOverride !== undefined || override?.dayOverride);
 
   return {
@@ -172,6 +224,8 @@ export function computeEntry(
     finalPct,
     price: Math.round(price * 100) / 100,
     isOverridden,
+    syncedSeason: override?.seasonOverride ? null : syncedSeason,
+    syncedHoliday: override?.holidayOverride !== undefined ? null : syncedHoliday,
   };
 }
 

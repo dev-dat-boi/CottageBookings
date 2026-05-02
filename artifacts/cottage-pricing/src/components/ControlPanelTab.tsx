@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -16,18 +16,25 @@ import { Loader2, Save, Plus, Trash2 } from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
+const MD_REGEX = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
 const seasonSchema = z.object({
   name: z.string().min(1, "Name required"),
   multiplier: z.coerce.number().min(0),
+  startDate: z.string().refine(v => !v || MD_REGEX.test(v), { message: "Use MM-DD format" }).nullable().optional(),
+  endDate: z.string().refine(v => !v || MD_REGEX.test(v), { message: "Use MM-DD format" }).nullable().optional(),
 });
 
 const holidaySchema = z.object({
   name: z.string().min(1, "Name required"),
   boost: z.coerce.number().min(0),
+  startDate: z.string().refine(v => !v || MD_REGEX.test(v), { message: "Use MM-DD format" }).nullable().optional(),
+  endDate: z.string().refine(v => !v || MD_REGEX.test(v), { message: "Use MM-DD format" }).nullable().optional(),
 });
 
 const settingsSchema = z.object({
   basePrice: z.coerce.number().min(0),
+  familyRate: z.coerce.number().min(0),
   seasons: z.array(seasonSchema),
   dayMultipliers: z.object({
     Monday: z.coerce.number(),
@@ -45,6 +52,53 @@ type FormValues = z.infer<typeof settingsSchema>;
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
 
+function DateRangeInputs({ prefix, control, index }: { prefix: "seasons" | "holidays"; control: any; index: number }) {
+  return (
+    <div className="flex gap-1.5 mt-1">
+      <FormField
+        control={control}
+        name={`${prefix}.${index}.startDate`}
+        render={({ field }) => (
+          <FormItem className="flex-1 min-w-0">
+            <FormLabel className="text-xs text-muted-foreground">From (MM-DD)</FormLabel>
+            <FormControl>
+              <Input
+                placeholder="06-01"
+                maxLength={5}
+                {...field}
+                value={field.value ?? ""}
+                onChange={e => field.onChange(e.target.value || null)}
+                className="text-xs h-8"
+              />
+            </FormControl>
+            <FormMessage className="text-xs" />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={control}
+        name={`${prefix}.${index}.endDate`}
+        render={({ field }) => (
+          <FormItem className="flex-1 min-w-0">
+            <FormLabel className="text-xs text-muted-foreground">To (MM-DD)</FormLabel>
+            <FormControl>
+              <Input
+                placeholder="08-31"
+                maxLength={5}
+                {...field}
+                value={field.value ?? ""}
+                onChange={e => field.onChange(e.target.value || null)}
+                className="text-xs h-8"
+              />
+            </FormControl>
+            <FormMessage className="text-xs" />
+          </FormItem>
+        )}
+      />
+    </div>
+  );
+}
+
 export function ControlPanelTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -58,28 +112,21 @@ export function ControlPanelTab() {
     resolver: zodResolver(settingsSchema),
     defaultValues: {
       basePrice: 300,
+      familyRate: 200,
       seasons: [],
       dayMultipliers: { Monday: 0.95, Tuesday: 0.95, Wednesday: 0.95, Thursday: 0.95, Friday: 1.1, Saturday: 1.25, Sunday: 1.05 },
       holidays: [],
     },
   });
 
-  const {
-    fields: seasonFields,
-    append: appendSeason,
-    remove: removeSeason,
-  } = useFieldArray({ control: form.control, name: "seasons" });
-
-  const {
-    fields: holidayFields,
-    append: appendHoliday,
-    remove: removeHoliday,
-  } = useFieldArray({ control: form.control, name: "holidays" });
+  const { fields: seasonFields, append: appendSeason, remove: removeSeason } = useFieldArray({ control: form.control, name: "seasons" });
+  const { fields: holidayFields, append: appendHoliday, remove: removeHoliday } = useFieldArray({ control: form.control, name: "holidays" });
 
   useEffect(() => {
     if (settings) {
       form.reset({
         basePrice: settings.basePrice,
+        familyRate: settings.familyRate,
         seasons: settings.seasons ?? [],
         dayMultipliers: settings.dayMultipliers,
         holidays: settings.holidays ?? [],
@@ -119,18 +166,31 @@ export function ControlPanelTab() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Base Price */}
+          {/* Base Configuration */}
           <Card className="border-border/40 shadow-sm md:col-span-2">
             <CardHeader className="bg-muted/30 border-b border-border/40">
               <CardTitle>Base Configuration</CardTitle>
             </CardHeader>
-            <CardContent className="p-6">
+            <CardContent className="p-6 flex flex-wrap gap-8">
               <FormField
                 control={form.control}
                 name="basePrice"
                 render={({ field }) => (
-                  <FormItem className="max-w-sm">
-                    <FormLabel>Base Nightly Rate ($)</FormLabel>
+                  <FormItem className="w-48">
+                    <FormLabel>Standard Rate ($/night)</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" {...field} className="text-lg font-medium" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="familyRate"
+                render={({ field }) => (
+                  <FormItem className="w-48">
+                    <FormLabel>Family Rate ($/night)</FormLabel>
                     <FormControl>
                       <Input type="number" step="0.01" {...field} className="text-lg font-medium" />
                     </FormControl>
@@ -146,60 +206,49 @@ export function ControlPanelTab() {
             <CardHeader className="bg-muted/30 border-b border-border/40 flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Seasons</CardTitle>
-                <CardDescription>Name and rate multiplier per season</CardDescription>
+                <CardDescription>Name, multiplier, and optional date range (MM-DD)</CardDescription>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => appendSeason({ name: "", multiplier: 1 })}
-              >
+              <Button type="button" variant="outline" size="sm" onClick={() => appendSeason({ name: "", multiplier: 1, startDate: null, endDate: null })}>
                 <Plus className="w-4 h-4 mr-1" /> Add
               </Button>
             </CardHeader>
-            <CardContent className="p-6 space-y-3">
+            <CardContent className="p-6 space-y-4">
               {seasonFields.length === 0 && (
                 <p className="text-sm text-muted-foreground italic">No seasons defined. Add one above.</p>
               )}
               {seasonFields.map((field, index) => (
-                <div key={field.id} className="flex gap-2 items-start">
-                  <FormField
-                    control={form.control}
-                    name={`seasons.${index}.name`}
-                    render={({ field }) => (
-                      <FormItem className="flex-1">
-                        {index === 0 && <FormLabel className="text-xs text-muted-foreground">Name</FormLabel>}
-                        <FormControl>
-                          <Input placeholder="e.g. Winter" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name={`seasons.${index}.multiplier`}
-                    render={({ field }) => (
-                      <FormItem className="w-28">
-                        {index === 0 && <FormLabel className="text-xs text-muted-foreground">Multiplier</FormLabel>}
-                        <FormControl>
-                          <Input type="number" step="0.01" placeholder="1.00" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <div className={index === 0 ? "mt-6" : ""}>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeSeason(index)}
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                <div key={field.id} className="border border-border/30 rounded-lg p-3 bg-muted/10 space-y-2">
+                  <div className="flex gap-2 items-start">
+                    <FormField
+                      control={form.control}
+                      name={`seasons.${index}.name`}
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <FormLabel className="text-xs text-muted-foreground">Season Name</FormLabel>
+                          <FormControl><Input placeholder="e.g. Winter" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`seasons.${index}.multiplier`}
+                      render={({ field }) => (
+                        <FormItem className="w-28">
+                          <FormLabel className="text-xs text-muted-foreground">Multiplier</FormLabel>
+                          <FormControl><Input type="number" step="0.01" placeholder="1.00" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="mt-5">
+                      <Button type="button" variant="ghost" size="icon" onClick={() => removeSeason(index)} className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
+                  <DateRangeInputs prefix="seasons" control={form.control} index={index} />
+                  <p className="text-xs text-muted-foreground">Leave dates blank to use the default seasonal algorithm.</p>
                 </div>
               ))}
             </CardContent>
@@ -220,9 +269,7 @@ export function ControlPanelTab() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{day}</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.01" {...field} />
-                      </FormControl>
+                      <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -236,14 +283,9 @@ export function ControlPanelTab() {
             <CardHeader className="bg-muted/30 border-b border-border/40 flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Holidays</CardTitle>
-                <CardDescription>Extra boost added on top of the base rate on holiday dates</CardDescription>
+                <CardDescription>Name, boost, and optional date range (MM-DD) to auto-apply to calendar</CardDescription>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => appendHoliday({ name: "", boost: 0 })}
-              >
+              <Button type="button" variant="outline" size="sm" onClick={() => appendHoliday({ name: "", boost: 0, startDate: null, endDate: null })}>
                 <Plus className="w-4 h-4 mr-1" /> Add
               </Button>
             </CardHeader>
@@ -251,46 +293,40 @@ export function ControlPanelTab() {
               {holidayFields.length === 0 && (
                 <p className="text-sm text-muted-foreground italic">No holidays defined. Add one above.</p>
               )}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {holidayFields.map((field, index) => (
-                  <div key={field.id} className="flex gap-2 items-start">
-                    <FormField
-                      control={form.control}
-                      name={`holidays.${index}.name`}
-                      render={({ field }) => (
-                        <FormItem className="flex-1">
-                          {index === 0 && <FormLabel className="text-xs text-muted-foreground">Holiday Name</FormLabel>}
-                          <FormControl>
-                            <Input placeholder="e.g. New Year" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`holidays.${index}.boost`}
-                      render={({ field }) => (
-                        <FormItem className="w-28">
-                          {index === 0 && <FormLabel className="text-xs text-muted-foreground">Boost</FormLabel>}
-                          <FormControl>
-                            <Input type="number" step="0.01" placeholder="0.25" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className={index === 0 ? "mt-6" : ""}>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeHoliday(index)}
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                  <div key={field.id} className="border border-border/30 rounded-lg p-3 bg-muted/10 space-y-2">
+                    <div className="flex gap-2 items-start">
+                      <FormField
+                        control={form.control}
+                        name={`holidays.${index}.name`}
+                        render={({ field }) => (
+                          <FormItem className="flex-1">
+                            <FormLabel className="text-xs text-muted-foreground">Holiday Name</FormLabel>
+                            <FormControl><Input placeholder="e.g. New Year" {...field} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name={`holidays.${index}.boost`}
+                        render={({ field }) => (
+                          <FormItem className="w-24">
+                            <FormLabel className="text-xs text-muted-foreground">Boost</FormLabel>
+                            <FormControl><Input type="number" step="0.01" placeholder="0.25" {...field} /></FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <div className="mt-5">
+                        <Button type="button" variant="ghost" size="icon" onClick={() => removeHoliday(index)} className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
+                    <DateRangeInputs prefix="holidays" control={form.control} index={index} />
+                    <p className="text-xs text-muted-foreground">Set date range to auto-apply to matching calendar days.</p>
                   </div>
                 ))}
               </div>

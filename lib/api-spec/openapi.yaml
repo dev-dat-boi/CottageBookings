@@ -153,6 +153,14 @@ components:
           type: string
         multiplier:
           type: number
+        startDate:
+          type: string
+          description: "Recurring start date in MM-DD format (e.g. 12-01)"
+          nullable: true
+        endDate:
+          type: string
+          description: "Recurring end date in MM-DD format (e.g. 03-31)"
+          nullable: true
       required: [name, multiplier]
 
     Holiday:
@@ -162,6 +170,14 @@ components:
           type: string
         boost:
           type: number
+        startDate:
+          type: string
+          description: "Recurring start date in MM-DD format (e.g. 07-14)"
+          nullable: true
+        endDate:
+          type: string
+          description: "Recurring end date in MM-DD format (e.g. 07-27)"
+          nullable: true
       required: [name, boost]
 
     DayMultipliers:
@@ -188,6 +204,9 @@ components:
       properties:
         basePrice:
           type: number
+        familyRate:
+          type: number
+          description: "Flat nightly rate for family bookings"
         seasons:
           type: array
           items:
@@ -198,7 +217,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Holiday"
-      required: [basePrice, seasons, dayMultipliers, holidays]
+      required: [basePrice, familyRate, seasons, dayMultipliers, holidays]
 
     DayOverrideRequest:
       type: object
@@ -239,6 +258,14 @@ components:
           type: number
         isOverridden:
           type: boolean
+        syncedSeason:
+          type: string
+          nullable: true
+          description: "Season name if this date falls within a season date range rule"
+        syncedHoliday:
+          type: string
+          nullable: true
+          description: "Holiday name if this date falls within a holiday date range rule"
       required: [date, dayOfWeek, season, seasonMult, dayMult, holiday, holidayBoost, demandAdj, finalPct, price, isOverridden]
 
     BookingRequest:
@@ -250,6 +277,14 @@ components:
         endDate:
           type: string
           description: ISO date string (YYYY-MM-DD)
+        rateType:
+          type: string
+          description: "'standard' or 'family'"
+          nullable: true
+        includeMultipliers:
+          type: boolean
+          description: "When rateType is 'family', whether to apply multipliers"
+          nullable: true
       required: [startDate, endDate]
 
     BookingResult:
@@ -265,8 +300,12 @@ components:
           type: number
         avgDailyRate:
           type: number
+        rateType:
+          type: string
+        includeMultipliers:
+          type: boolean
         breakdown:
           type: array
           items:
             $ref: "#/components/schemas/CalendarEntry"
-      required: [startDate, endDate, nights, totalPrice, avgDailyRate, breakdown]
+      required: [startDate, endDate, nights, totalPrice, avgDailyRate, rateType, includeMultipliers, breakdown]

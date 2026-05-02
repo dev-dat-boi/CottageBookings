@@ -1,25 +1,49 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { DayPicker, DateRange } from "react-day-picker";
 import { format } from "date-fns";
 import "react-day-picker/dist/style.css";
-import { useCalculateBooking } from "@workspace/api-client-react";
+import { useCalculateBooking, useGetSettings, getGetSettingsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Calculator } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
+type RateType = "standard" | "family";
 
 export function BookingsTab() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
-  const calculateMutation = useCalculateBooking();
+  const [rateType, setRateType] = useState<RateType>("standard");
+  const [includeMultipliers, setIncludeMultipliers] = useState(false);
+  const [showRateDialog, setShowRateDialog] = useState(false);
 
-  const handleCalculate = () => {
+  const calculateMutation = useCalculateBooking();
+  const { data: settings } = useGetSettings({ query: { queryKey: getGetSettingsQueryKey() } });
+
+  const handleCalculateClick = () => {
     if (!dateRange?.from || !dateRange?.to) return;
+    setShowRateDialog(true);
+  };
+
+  const handleConfirmRate = (chosenRate: RateType, withMultipliers: boolean) => {
+    setRateType(chosenRate);
+    setIncludeMultipliers(withMultipliers);
+    setShowRateDialog(false);
     calculateMutation.mutate({
       data: {
-        startDate: format(dateRange.from, "yyyy-MM-dd"),
-        endDate: format(dateRange.to, "yyyy-MM-dd"),
-      }
+        startDate: format(dateRange!.from!, "yyyy-MM-dd"),
+        endDate: format(dateRange!.to!, "yyyy-MM-dd"),
+        rateType: chosenRate,
+        includeMultipliers: withMultipliers,
+      },
     });
   };
 
@@ -27,6 +51,7 @@ export function BookingsTab() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-8">
+      {/* Date picker panel */}
       <div className="space-y-6">
         <Card className="border-border/40 shadow-sm">
           <CardHeader>
@@ -44,10 +69,10 @@ export function BookingsTab() {
                 day_today: "font-bold text-accent",
               }}
             />
-            <Button 
+            <Button
               className="w-full mt-6 py-6 text-base"
               disabled={!dateRange?.from || !dateRange?.to || calculateMutation.isPending}
-              onClick={handleCalculate}
+              onClick={handleCalculateClick}
             >
               {calculateMutation.isPending ? (
                 <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Calculating...</>
@@ -59,6 +84,7 @@ export function BookingsTab() {
         </Card>
       </div>
 
+      {/* Results panel */}
       <div>
         <Card className="border-border/40 shadow-sm h-full">
           <CardHeader>
@@ -72,6 +98,19 @@ export function BookingsTab() {
               </div>
             ) : (
               <div className="space-y-8">
+                {/* Rate type badge */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <Badge variant="outline" className="text-sm px-3 py-1 border-primary/40 text-primary">
+                    {result.rateType === "family" ? "Family Rate" : "Standard Rate"}
+                  </Badge>
+                  {result.rateType === "family" && (
+                    <Badge variant="secondary" className="text-sm px-3 py-1">
+                      {result.includeMultipliers ? "Multipliers applied" : "Flat rate — no multipliers"}
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Summary cards */}
                 <div className="grid grid-cols-3 gap-4">
                   <div className="bg-card border border-border/40 p-6 rounded-xl text-center shadow-sm">
                     <p className="text-sm text-muted-foreground font-medium mb-1">Total Nights</p>
@@ -87,6 +126,7 @@ export function BookingsTab() {
                   </div>
                 </div>
 
+                {/* Nightly breakdown */}
                 <div className="border border-border/40 rounded-xl overflow-hidden shadow-sm">
                   <Table>
                     <TableHeader className="bg-muted/30">
@@ -110,18 +150,18 @@ export function BookingsTab() {
                           </TableCell>
                           <TableCell>
                             <div className="flex flex-wrap gap-2">
-                              {entry.dayMult !== 1 && (
+                              {result.includeMultipliers && entry.dayMult !== 1 && (
                                 <Badge variant="secondary" className="font-normal">
                                   Day: {((entry.dayMult - 1) * 100).toFixed(0)}%
                                 </Badge>
                               )}
-                              {entry.holiday && (
+                              {result.includeMultipliers && entry.holiday && (
                                 <Badge className="bg-accent text-accent-foreground font-normal hover:bg-accent">
-                                  {entry.holiday}: {((entry.holidayBoost - 1) * 100).toFixed(0)}%
+                                  {entry.holiday}: +{(entry.holidayBoost * 100).toFixed(0)}%
                                 </Badge>
                               )}
-                              {entry.dayMult === 1 && !entry.holiday && (
-                                <span className="text-sm text-muted-foreground">-</span>
+                              {(!result.includeMultipliers || (entry.dayMult === 1 && !entry.holiday)) && (
+                                <span className="text-sm text-muted-foreground">—</span>
                               )}
                             </div>
                           </TableCell>
@@ -136,6 +176,107 @@ export function BookingsTab() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Rate type dialog */}
+      <RateDialog
+        open={showRateDialog}
+        onClose={() => setShowRateDialog(false)}
+        onConfirm={handleConfirmRate}
+        standardRate={settings?.basePrice ?? 300}
+        familyRate={settings?.familyRate ?? 200}
+      />
     </div>
+  );
+}
+
+interface RateDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: (rateType: RateType, includeMultipliers: boolean) => void;
+  standardRate: number;
+  familyRate: number;
+}
+
+function RateDialog({ open, onClose, onConfirm, standardRate, familyRate }: RateDialogProps) {
+  const [selected, setSelected] = useState<RateType>("standard");
+  const [withMult, setWithMult] = useState(false);
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Select Rate Type</DialogTitle>
+          <DialogDescription>Choose which rate to apply to this booking.</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 py-2">
+          {/* Standard rate option */}
+          <button
+            type="button"
+            onClick={() => setSelected("standard")}
+            className={`w-full text-left p-4 rounded-xl border-2 transition-colors ${
+              selected === "standard"
+                ? "border-primary bg-primary/5"
+                : "border-border/40 hover:border-border"
+            }`}
+          >
+            <div className="font-semibold text-foreground">Standard Rate</div>
+            <div className="text-sm text-muted-foreground mt-0.5">
+              ${standardRate}/night base — all season, day, and holiday multipliers applied
+            </div>
+          </button>
+
+          {/* Family rate option */}
+          <button
+            type="button"
+            onClick={() => setSelected("family")}
+            className={`w-full text-left p-4 rounded-xl border-2 transition-colors ${
+              selected === "family"
+                ? "border-primary bg-primary/5"
+                : "border-border/40 hover:border-border"
+            }`}
+          >
+            <div className="font-semibold text-foreground">Family Rate</div>
+            <div className="text-sm text-muted-foreground mt-0.5">
+              ${familyRate}/night base rate
+            </div>
+          </button>
+
+          {/* Multiplier toggle — only shown for family */}
+          {selected === "family" && (
+            <div className="ml-2 mt-1 space-y-2 pl-3 border-l-2 border-primary/30">
+              <p className="text-sm font-medium text-foreground">Apply multipliers?</p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setWithMult(false)}
+                  className={`flex-1 py-2 px-3 rounded-lg border text-sm transition-colors ${
+                    !withMult ? "bg-primary text-primary-foreground border-primary" : "border-border/40 hover:bg-muted/50"
+                  }`}
+                >
+                  Exclude — flat ${familyRate}/night
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWithMult(true)}
+                  className={`flex-1 py-2 px-3 rounded-lg border text-sm transition-colors ${
+                    withMult ? "bg-primary text-primary-foreground border-primary" : "border-border/40 hover:bg-muted/50"
+                  }`}
+                >
+                  Include multipliers
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => onConfirm(selected, selected === "family" ? withMult : true)}>
+            Calculate
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -11,6 +11,7 @@ function rowToApi(row: typeof settingsTable.$inferSelect) {
   const holidays = parseHolidays(row.holidaysJson);
   return {
     basePrice: row.basePrice,
+    familyRate: row.familyRate,
     seasons,
     dayMultipliers: {
       Monday: row.dayMonday,
@@ -34,10 +35,9 @@ async function ensureDefaultSettings() {
       holidaysJson: JSON.stringify(DEFAULT_HOLIDAYS),
     });
   } else {
-    // Migrate: if seasons/holidays JSON is empty array, seed defaults
     const row = existing[0];
-    const seasons = JSON.parse(row.seasonsJson || '[]');
-    const holidays = JSON.parse(row.holidaysJson || '[]');
+    const seasons = JSON.parse(row.seasonsJson || "[]");
+    const holidays = JSON.parse(row.holidaysJson || "[]");
     const updates: Partial<typeof settingsTable.$inferInsert> = {};
     if (!Array.isArray(seasons) || seasons.length === 0) {
       updates.seasonsJson = JSON.stringify(DEFAULT_SEASONS);
@@ -74,6 +74,7 @@ router.put("/settings", async (req, res) => {
     await ensureDefaultSettings();
     await db.update(settingsTable).set({
       basePrice: body.basePrice,
+      familyRate: body.familyRate,
       dayMonday: body.dayMultipliers.Monday,
       dayTuesday: body.dayMultipliers.Tuesday,
       dayWednesday: body.dayMultipliers.Wednesday,

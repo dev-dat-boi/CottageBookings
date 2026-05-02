@@ -9,4 +9,8 @@
 export interface Holiday {
   name: string;
   boost: number;
+  /** Recurring start date in MM-DD format (e.g. 07-14) */
+  startDate?: string | null;
+  /** Recurring end date in MM-DD format (e.g. 07-27) */
+  endDate?: string | null;
 }

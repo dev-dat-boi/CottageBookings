@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 export const settingsTable = pgTable("settings", {
   id: integer("id").primaryKey().default(1),
   basePrice: real("base_price").notNull().default(300),
+  familyRate: real("family_rate").notNull().default(200),
   // Day of week multipliers (fixed 7 days)
   dayMonday: real("day_monday").notNull().default(0.95),
   dayTuesday: real("day_tuesday").notNull().default(0.95),

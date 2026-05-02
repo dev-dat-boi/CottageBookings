@@ -9,4 +9,8 @@
 export interface Season {
   name: string;
   multiplier: number;
+  /** Recurring start date in MM-DD format (e.g. 12-01) */
+  startDate?: string | null;
+  /** Recurring end date in MM-DD format (e.g. 03-31) */
+  endDate?: string | null;
 }
