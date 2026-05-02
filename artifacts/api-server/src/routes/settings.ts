@@ -142,7 +142,7 @@ async function syncOwnersToUsers(oldOwners: { name: string; email: string }[], n
         email: emailLower,
         name: owner.name || "",
         passwordHash: hash,
-        role: "viewer",
+        role: "owner",
       }).onConflictDoNothing();
       createdPasswords.push(`${owner.name || owner.email} (${emailLower}): ${DEFAULT_PASSWORD}`);
     } else {

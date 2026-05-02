@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Trash2, Plus, Shield, Eye, Link2, Copy, Check, KeyRound, Mail } from "lucide-react";
+import { Loader2, Trash2, Plus, Shield, Eye, Link2, Copy, Check, KeyRound, Mail, ChevronDown, ChevronUp, Wrench } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -58,9 +58,73 @@ function ResetLinkDialog({ link, emailSent, onClose }: { link: string; emailSent
   );
 }
 
-interface AddUserFormProps {
-  onDone: () => void;
+function RoleBadge({ role }: { role: string }) {
+  if (role === "admin") return (
+    <Badge className="bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100 text-xs shrink-0">
+      <Shield className="w-2.5 h-2.5 mr-1" />Admin
+    </Badge>
+  );
+  if (role === "mod") return (
+    <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100 text-xs shrink-0">
+      <Wrench className="w-2.5 h-2.5 mr-1" />Mod
+    </Badge>
+  );
+  return (
+    <Badge className="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100 text-xs shrink-0">
+      <Eye className="w-2.5 h-2.5 mr-1" />Owner
+    </Badge>
+  );
 }
+
+interface InlinePasswordProps {
+  userId: number;
+  onClose: () => void;
+}
+function InlinePasswordEdit({ userId, onClose }: InlinePasswordProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const updateMutation = useUpdateUser();
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+
+  function handleSave() {
+    setError("");
+    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    updateMutation.mutate(
+      { id: userId, data: { password } as any },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+          toast({ title: "Password updated", description: "The user's password has been changed." });
+          onClose();
+        },
+        onError: () => setError("Failed to update password."),
+      }
+    );
+  }
+
+  return (
+    <div className="mt-2 pt-2 border-t border-border/30 flex flex-wrap items-center gap-2">
+      <Input
+        type="password"
+        placeholder="New password (min 6 chars)"
+        value={password}
+        onChange={e => { setPassword(e.target.value); setError(""); }}
+        className="h-7 text-xs flex-1 min-w-40"
+        onKeyDown={e => e.key === "Enter" && handleSave()}
+        autoFocus
+      />
+      {error && <p className="text-xs text-destructive w-full">{error}</p>}
+      <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={onClose}>Cancel</Button>
+      <Button size="sm" className="h-7 text-xs px-2" onClick={handleSave} disabled={updateMutation.isPending}>
+        {updateMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+        Save Password
+      </Button>
+    </div>
+  );
+}
+
+interface AddUserFormProps { onDone: () => void; }
 function AddUserForm({ onDone }: AddUserFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -68,7 +132,7 @@ function AddUserForm({ onDone }: AddUserFormProps) {
   const [newEmail, setNewEmail] = useState("");
   const [newName, setNewName] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [newRole, setNewRole] = useState<"viewer" | "admin">("viewer");
+  const [newRole, setNewRole] = useState<"owner" | "mod" | "admin">("owner");
   const [addError, setAddError] = useState("");
 
   function handleAdd() {
@@ -94,8 +158,9 @@ function AddUserForm({ onDone }: AddUserFormProps) {
         <Input placeholder="Name" value={newName} onChange={e => setNewName(e.target.value)} />
         <Input type="email" placeholder="Email *" value={newEmail} onChange={e => { setNewEmail(e.target.value); setAddError(""); }} />
         <Input type="password" placeholder="Password *" value={newPassword} onChange={e => setNewPassword(e.target.value)} />
-        <select className="text-sm border border-border/40 rounded px-3 py-2 bg-background" value={newRole} onChange={e => setNewRole(e.target.value as "viewer" | "admin")}>
-          <option value="viewer">Viewer</option>
+        <select className="text-sm border border-border/40 rounded px-3 py-2 bg-background" value={newRole} onChange={e => setNewRole(e.target.value as "owner" | "mod" | "admin")}>
+          <option value="owner">Owner</option>
+          <option value="mod">Mod</option>
           <option value="admin">Admin</option>
         </select>
       </div>
@@ -122,6 +187,7 @@ export function UsersTab() {
   const [showAdd, setShowAdd] = useState(false);
   const [resetLinkData, setResetLinkData] = useState<{ link: string; emailSent: boolean } | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [expandedPasswordId, setExpandedPasswordId] = useState<number | null>(null);
 
   function invalidate() { queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() }); }
 
@@ -178,40 +244,57 @@ export function UsersTab() {
           ) : (
             <div className="space-y-2">
               {users?.map(u => (
-                <div key={u.id} className="flex items-center gap-3 p-3 rounded-lg border border-border/40 bg-muted/10">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{u.name || u.email}</p>
-                    <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                  </div>
-                  <select
-                    className="text-xs border border-border/40 rounded px-2 py-1 bg-background hidden sm:block"
-                    value={u.role}
-                    disabled={u.id === me?.id}
-                    onChange={e => handleRoleChange(u.id, e.target.value)}
-                  >
-                    <option value="viewer">Viewer</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                  <Badge className={u.role === "admin"
-                    ? "bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-100 text-xs shrink-0"
-                    : "bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100 text-xs shrink-0"}>
-                    {u.role === "admin" ? <><Shield className="w-2.5 h-2.5 mr-1" />Admin</> : <><Eye className="w-2.5 h-2.5 mr-1" />Viewer</>}
-                  </Badge>
-                  <Button
-                    variant="outline" size="sm"
-                    className="shrink-0 text-xs h-7 px-2 hidden sm:flex"
-                    disabled={sendResetMutation.isPending}
-                    onClick={() => handleSendReset(u.id)}
-                    title="Send password reset link"
-                  >
-                    {sendResetMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <KeyRound className="w-3 h-3" />}
-                    <span className="ml-1 hidden md:inline">Reset Link</span>
-                  </Button>
-                  {u.id !== me?.id && (
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10 shrink-0"
-                      onClick={() => setConfirmDeleteId(u.id)}>
-                      <Trash2 className="w-3 h-3" />
+                <div key={u.id} className="rounded-lg border border-border/40 bg-muted/10">
+                  <div className="flex items-center gap-3 p-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{u.name || u.email}</p>
+                      <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                    </div>
+                    <select
+                      className="text-xs border border-border/40 rounded px-2 py-1 bg-background hidden sm:block"
+                      value={u.role}
+                      disabled={u.id === me?.id}
+                      onChange={e => handleRoleChange(u.id, e.target.value)}
+                    >
+                      <option value="owner">Owner</option>
+                      <option value="mod">Mod</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    <RoleBadge role={u.role} />
+                    <Button
+                      variant="outline" size="sm"
+                      className="shrink-0 text-xs h-7 px-2 hidden sm:flex"
+                      onClick={() => setExpandedPasswordId(expandedPasswordId === u.id ? null : u.id)}
+                      title="Set password"
+                    >
+                      {expandedPasswordId === u.id
+                        ? <ChevronUp className="w-3 h-3" />
+                        : <KeyRound className="w-3 h-3" />}
+                      <span className="ml-1 hidden md:inline">
+                        {expandedPasswordId === u.id ? "Cancel" : "Password"}
+                      </span>
                     </Button>
+                    <Button
+                      variant="outline" size="sm"
+                      className="shrink-0 text-xs h-7 px-2 hidden sm:flex"
+                      disabled={sendResetMutation.isPending}
+                      onClick={() => handleSendReset(u.id)}
+                      title="Send password reset link"
+                    >
+                      {sendResetMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2 className="w-3 h-3" />}
+                      <span className="ml-1 hidden md:inline">Reset Link</span>
+                    </Button>
+                    {u.id !== me?.id && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10 shrink-0"
+                        onClick={() => setConfirmDeleteId(u.id)}>
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    )}
+                  </div>
+                  {expandedPasswordId === u.id && (
+                    <div className="px-3 pb-3">
+                      <InlinePasswordEdit userId={u.id} onClose={() => setExpandedPasswordId(null)} />
+                    </div>
                   )}
                 </div>
               ))}

@@ -5,7 +5,7 @@ export interface AuthUser {
   id: number;
   email: string;
   name: string;
-  role: "admin" | "viewer" | string;
+  role: "admin" | "mod" | "owner" | string;
   createdAt: string;
 }
 
@@ -14,13 +14,14 @@ interface AuthContextValue {
   token: string | null;
   isLoggedIn: boolean;
   isAdmin: boolean;
+  isMod: boolean;
   login: (token: string, user: AuthUser) => void;
   logout: () => void;
   loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue>({
-  user: null, token: null, isLoggedIn: false, isAdmin: false,
+  user: null, token: null, isLoggedIn: false, isAdmin: false, isMod: false,
   login: () => {}, logout: () => {}, loading: true,
 });
 
@@ -32,8 +33,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Register the token getter with the API client so every request
-  // automatically gets the Authorization: Bearer <token> header.
   useEffect(() => {
     setAuthTokenGetter(() => localStorage.getItem(TOKEN_KEY));
     return () => { setAuthTokenGetter(null); };
@@ -74,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user, token,
       isLoggedIn: !!user,
       isAdmin: user?.role === "admin",
+      isMod: user?.role === "mod",
       login, logout, loading,
     }}>
       {children}

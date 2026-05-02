@@ -9,13 +9,13 @@ import { HomeTab } from "@/components/HomeTab";
 import { UsersTab } from "@/components/UsersTab";
 import { LoginDialog } from "@/components/LoginDialog";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
-import { Trees, History, BookMarked, LogOut, LogIn, Users, Home, Shield, KeyRound } from "lucide-react";
+import { Trees, History, BookMarked, LogOut, LogIn, Users, Home, Shield, KeyRound, Wrench } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 export default function Dashboard() {
-  const { isLoggedIn, isAdmin, user, logout } = useAuth();
+  const { isLoggedIn, isAdmin, isMod, user, logout } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
 
@@ -38,6 +38,7 @@ export default function Dashboard() {
                 <div className="hidden sm:flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">{user?.name || user?.email}</span>
                   {isAdmin && <Badge className="bg-purple-100 text-purple-700 border-purple-200 text-xs hover:bg-purple-100"><Shield className="w-2.5 h-2.5 mr-1" />Admin</Badge>}
+                  {isMod && <Badge className="bg-orange-100 text-orange-700 border-orange-200 text-xs hover:bg-orange-100"><Wrench className="w-2.5 h-2.5 mr-1" />Mod</Badge>}
                 </div>
                 <Button variant="outline" size="sm" onClick={() => setShowChangePassword(true)} className="hidden sm:flex" title="Change password">
                   <KeyRound className="w-3.5 h-3.5 sm:mr-1.5" /><span className="hidden sm:inline">Password</span>

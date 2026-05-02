@@ -267,12 +267,28 @@ function AdminOnlyBanner() {
   );
 }
 
+function ModBanner() {
+  return (
+    <Card className="border-orange-200 bg-orange-50/50 dark:border-orange-800 dark:bg-orange-950/10 shadow-sm">
+      <CardContent className="py-5 flex items-center gap-3">
+        <Lock className="w-5 h-5 text-orange-400 shrink-0" />
+        <div>
+          <p className="font-semibold text-foreground text-sm">Moderator Access</p>
+          <p className="text-xs text-muted-foreground mt-0.5">You can edit day multipliers and holidays. Base rates and seasons are admin-only.</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export function ControlPanelTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { isAdmin } = useAuth();
-  const isLocked = !isAdmin;
+  const { isAdmin, isMod } = useAuth();
+  const adminLocked = !isAdmin;
+  const modLocked = !isAdmin && !isMod;
+  const canSave = isAdmin || isMod;
   const { data: settings, isLoading } = useGetSettings({ query: { queryKey: getGetSettingsQueryKey() } });
   const updateMutation = useUpdateSettings();
 
@@ -325,8 +341,9 @@ export function ControlPanelTab() {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
 
-        {/* Read-only banner for non-admins */}
-        {isLocked && <AdminOnlyBanner />}
+        {/* Banners */}
+        {!isAdmin && !isMod && <AdminOnlyBanner />}
+        {isMod && <ModBanner />}
 
         {/* Save bar */}
         <div className="flex flex-wrap justify-between items-center bg-card p-4 rounded-xl border border-border/40 shadow-sm gap-3">
@@ -334,92 +351,96 @@ export function ControlPanelTab() {
             <h2 className="text-base sm:text-lg font-bold text-foreground">Pricing Controls</h2>
             <p className="text-xs sm:text-sm text-muted-foreground">Adjust base rates and multipliers.</p>
           </div>
-          <Button type="submit" disabled={updateMutation.isPending || isLocked} className="min-w-[120px]">
+          <Button type="submit" disabled={updateMutation.isPending || !canSave} className="min-w-[120px]">
             {updateMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
             Save Changes
           </Button>
         </div>
 
-        <fieldset disabled={isLocked} className="space-y-6 disabled:opacity-60 disabled:pointer-events-none">
+        <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-            {/* Base Configuration */}
-            <Card className="border-border/40 shadow-sm md:col-span-2">
-              <CardHeader className="bg-muted/30 border-b border-border/40"><CardTitle>Base Configuration</CardTitle></CardHeader>
-              <CardContent className="p-4 sm:p-6 flex flex-wrap gap-6">
-                <FormField control={form.control} name="basePrice"
-                  render={({ field }) => (<FormItem className="w-40 sm:w-48"><FormLabel>Standard Rate ($/night)</FormLabel><FormControl><Input type="number" step="0.01" {...field} className="text-lg font-medium" /></FormControl><FormMessage /></FormItem>)}
-                />
-                <FormField control={form.control} name="familyRate"
-                  render={({ field }) => (<FormItem className="w-40 sm:w-48"><FormLabel>Family Rate ($/night)</FormLabel><FormControl><Input type="number" step="0.01" {...field} className="text-lg font-medium" /></FormControl><FormMessage /></FormItem>)}
-                />
-                <FormField control={form.control} name="familyRateCode"
-                  render={({ field }) => (
-                    <FormItem className="w-48 sm:w-56">
-                      <FormLabel>Family Rate Access Code</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Leave blank for no code" {...field} value={field.value ?? ""} className="font-mono" />
-                      </FormControl>
-                      <p className="text-xs text-muted-foreground mt-1">Guests must enter this code to book at the family rate. Logged-in owners skip it.</p>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </CardContent>
-            </Card>
-
-            {/* Seasons */}
-            <Card className="border-border/40 shadow-sm">
-              <CardHeader className="bg-muted/30 border-b border-border/40">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div><CardTitle>Seasons</CardTitle><CardDescription className="text-xs mt-0.5">Name, multiplier, optional date range (MM-DD)</CardDescription></div>
-                  <Button type="button" variant="outline" size="sm" onClick={() => appendSeason({ name: "", multiplier: 1, startDate: null, endDate: null })}><Plus className="w-4 h-4 mr-1" /> Add</Button>
-                </div>
-              </CardHeader>
-              <CardContent className="p-4 sm:p-6 space-y-3">
-                {seasonFields.length === 0 && <p className="text-sm text-muted-foreground italic">No seasons. Add one above.</p>}
-                {seasonFields.map((field, index) => (
-                  <div key={field.id} className="border border-border/30 rounded-lg p-3 bg-muted/10 space-y-2">
-                    <div className="flex gap-2 items-start">
-                      <FormField control={form.control} name={`seasons.${index}.name`}
-                        render={({ field }) => (<FormItem className="flex-1 min-w-0"><FormLabel className="text-xs text-muted-foreground">Name</FormLabel><FormControl><Input placeholder="e.g. Winter" {...field} /></FormControl><FormMessage /></FormItem>)}
-                      />
-                      <FormField control={form.control} name={`seasons.${index}.multiplier`}
-                        render={({ field }) => (<FormItem className="w-24 shrink-0"><FormLabel className="text-xs text-muted-foreground">Multiplier</FormLabel><FormControl><Input type="number" step="0.01" placeholder="1.00" {...field} /></FormControl><FormMessage /></FormItem>)}
-                      />
-                      <div className="mt-5 shrink-0">
-                        <Button type="button" variant="ghost" size="icon" onClick={() => removeSeason(index)} className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8"><Trash2 className="w-3.5 h-3.5" /></Button>
-                      </div>
-                    </div>
-                    <DateRangeInputs prefix="seasons" control={form.control} index={index} />
-                    <p className="text-xs text-muted-foreground">Leave blank to use the built-in seasonal algorithm.</p>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            {/* Day Multipliers */}
-            <Card className="border-border/40 shadow-sm">
-              <CardHeader className="bg-muted/30 border-b border-border/40"><CardTitle>Day of Week Multipliers</CardTitle><CardDescription>Weekend premium or weekday discount</CardDescription></CardHeader>
-              <CardContent className="p-4 sm:p-6 grid grid-cols-2 gap-3">
-                {DAY_NAMES.map(day => (
-                  <FormField key={day} control={form.control} name={`dayMultipliers.${day}`}
-                    render={({ field }) => (<FormItem><FormLabel className="text-sm">{day}</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>)}
+            {/* Base Configuration — admin only */}
+            <fieldset disabled={adminLocked} className="contents disabled:opacity-60 disabled:pointer-events-none">
+              <Card className="border-border/40 shadow-sm md:col-span-2">
+                <CardHeader className="bg-muted/30 border-b border-border/40"><CardTitle>Base Configuration</CardTitle></CardHeader>
+                <CardContent className="p-4 sm:p-6 flex flex-wrap gap-6">
+                  <FormField control={form.control} name="basePrice"
+                    render={({ field }) => (<FormItem className="w-40 sm:w-48"><FormLabel>Standard Rate ($/night)</FormLabel><FormControl><Input type="number" step="0.01" {...field} className="text-lg font-medium" /></FormControl><FormMessage /></FormItem>)}
                   />
-                ))}
-              </CardContent>
-            </Card>
+                  <FormField control={form.control} name="familyRate"
+                    render={({ field }) => (<FormItem className="w-40 sm:w-48"><FormLabel>Family Rate ($/night)</FormLabel><FormControl><Input type="number" step="0.01" {...field} className="text-lg font-medium" /></FormControl><FormMessage /></FormItem>)}
+                  />
+                  <FormField control={form.control} name="familyRateCode"
+                    render={({ field }) => (
+                      <FormItem className="w-48 sm:w-56">
+                        <FormLabel>Family Rate Access Code</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Leave blank for no code" {...field} value={field.value ?? ""} className="font-mono" />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground mt-1">Guests must enter this code to book at the family rate. Logged-in owners skip it.</p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </CardContent>
+              </Card>
 
-            {/* Holidays (by year) */}
-            <HolidaysByYearSection
-              control={form.control}
-              form={form}
-              disabled={isLocked}
-              defaultHolidays={defaultHolidays}
-            />
+              {/* Seasons — admin only */}
+              <Card className="border-border/40 shadow-sm">
+                <CardHeader className="bg-muted/30 border-b border-border/40">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div><CardTitle>Seasons</CardTitle><CardDescription className="text-xs mt-0.5">Name, multiplier, optional date range (MM-DD)</CardDescription></div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => appendSeason({ name: "", multiplier: 1, startDate: null, endDate: null })}><Plus className="w-4 h-4 mr-1" /> Add</Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4 sm:p-6 space-y-3">
+                  {seasonFields.length === 0 && <p className="text-sm text-muted-foreground italic">No seasons. Add one above.</p>}
+                  {seasonFields.map((field, index) => (
+                    <div key={field.id} className="border border-border/30 rounded-lg p-3 bg-muted/10 space-y-2">
+                      <div className="flex gap-2 items-start">
+                        <FormField control={form.control} name={`seasons.${index}.name`}
+                          render={({ field }) => (<FormItem className="flex-1 min-w-0"><FormLabel className="text-xs text-muted-foreground">Name</FormLabel><FormControl><Input placeholder="e.g. Winter" {...field} /></FormControl><FormMessage /></FormItem>)}
+                        />
+                        <FormField control={form.control} name={`seasons.${index}.multiplier`}
+                          render={({ field }) => (<FormItem className="w-24 shrink-0"><FormLabel className="text-xs text-muted-foreground">Multiplier</FormLabel><FormControl><Input type="number" step="0.01" placeholder="1.00" {...field} /></FormControl><FormMessage /></FormItem>)}
+                        />
+                        <div className="mt-5 shrink-0">
+                          <Button type="button" variant="ghost" size="icon" onClick={() => removeSeason(index)} className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8"><Trash2 className="w-3.5 h-3.5" /></Button>
+                        </div>
+                      </div>
+                      <DateRangeInputs prefix="seasons" control={form.control} index={index} />
+                      <p className="text-xs text-muted-foreground">Leave blank to use the built-in seasonal algorithm.</p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </fieldset>
+
+            {/* Day Multipliers — admin + mod */}
+            <fieldset disabled={modLocked} className="contents disabled:opacity-60 disabled:pointer-events-none">
+              <Card className="border-border/40 shadow-sm">
+                <CardHeader className="bg-muted/30 border-b border-border/40"><CardTitle>Day of Week Multipliers</CardTitle><CardDescription>Weekend premium or weekday discount</CardDescription></CardHeader>
+                <CardContent className="p-4 sm:p-6 grid grid-cols-2 gap-3">
+                  {DAY_NAMES.map(day => (
+                    <FormField key={day} control={form.control} name={`dayMultipliers.${day}`}
+                      render={({ field }) => (<FormItem><FormLabel className="text-sm">{day}</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>)}
+                    />
+                  ))}
+                </CardContent>
+              </Card>
+
+              {/* Holidays (by year) — admin + mod */}
+              <HolidaysByYearSection
+                control={form.control}
+                form={form}
+                disabled={modLocked}
+                defaultHolidays={defaultHolidays}
+              />
+            </fieldset>
 
           </div>
-        </fieldset>
+        </div>
       </form>
     </Form>
   );
