@@ -77,6 +77,20 @@ export function parseHolidays(json: string): HolidayDef[] {
   }
 }
 
+export function parseHolidaysByYear(json: string): Record<string, HolidayDef[]> {
+  try {
+    const obj = JSON.parse(json);
+    return typeof obj === "object" && !Array.isArray(obj) && obj !== null ? obj : {};
+  } catch {
+    return {};
+  }
+}
+
+export function holidaysForDate(d: Date, holidaysByYear: Record<string, HolidayDef[]>, fallback: HolidayDef[]): HolidayDef[] {
+  const yr = d.getUTCFullYear().toString();
+  return holidaysByYear[yr] ?? fallback;
+}
+
 function inMDRange(month: number, day: number, startMD: string, endMD: string): boolean {
   const [sm, sd] = startMD.split("-").map(Number);
   const [em, ed] = endMD.split("-").map(Number);
@@ -241,6 +255,7 @@ export function generateCalendar(
   s: Settings,
   seasons: SeasonDef[],
   holidays: HolidayDef[],
+  holidaysByYear: Record<string, HolidayDef[]>,
   overrides: Map<string, Override>,
   fromYear?: number,
   toYear?: number
@@ -254,7 +269,8 @@ export function generateCalendar(
     const end = new Date(year + 1, 0, 1);
     for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
       const dateStr = d.toISOString().slice(0, 10);
-      entries.push(computeEntry(new Date(d), s, seasons, holidays, overrides.get(dateStr) ?? null));
+      const dateHolidays = holidaysForDate(new Date(d), holidaysByYear, holidays);
+      entries.push(computeEntry(new Date(d), s, seasons, dateHolidays, overrides.get(dateStr) ?? null));
     }
   }
   return entries;

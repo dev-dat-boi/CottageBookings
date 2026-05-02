@@ -130,8 +130,6 @@ function HolidaysByYearSection({ control, form, disabled, defaultHolidays }: {
 }) {
   const currentYear = new Date().getFullYear();
   const holidaysByYear: Record<string, Holiday[]> = form.watch("holidaysByYear") ?? {};
-  const years = Object.keys(holidaysByYear).sort();
-  const [activeYear, setActiveYear] = useState<string | null>(years[0] ?? null);
   const [showAddYear, setShowAddYear] = useState(false);
   const [newYear, setNewYear] = useState(String(currentYear));
 
@@ -139,7 +137,6 @@ function HolidaysByYearSection({ control, form, disabled, defaultHolidays }: {
     if (!newYear || holidaysByYear[newYear]) return;
     const updated = { ...holidaysByYear, [newYear]: defaultHolidays.map(h => ({ ...h })) };
     form.setValue("holidaysByYear", updated, { shouldDirty: true });
-    setActiveYear(newYear);
     setShowAddYear(false);
   }
 
@@ -147,7 +144,6 @@ function HolidaysByYearSection({ control, form, disabled, defaultHolidays }: {
     const updated = { ...holidaysByYear };
     delete updated[yr];
     form.setValue("holidaysByYear", updated, { shouldDirty: true });
-    setActiveYear(Object.keys(updated)[0] ?? null);
   }
 
   const allYears = Object.keys(holidaysByYear).sort();
@@ -161,7 +157,7 @@ function HolidaysByYearSection({ control, form, disabled, defaultHolidays }: {
               <CalendarDays className="w-4 h-4" /> Holidays
             </CardTitle>
             <CardDescription className="mt-0.5">
-              Customize holidays per year — dates shift year to year. Click "Add Year" to add another year.
+              Holidays are applied per year — only to dates within that calendar year.
             </CardDescription>
           </div>
           {!disabled && (
@@ -174,45 +170,37 @@ function HolidaysByYearSection({ control, form, disabled, defaultHolidays }: {
 
       {allYears.length === 0 ? (
         <CardContent className="py-8 text-center text-muted-foreground text-sm">
-          No year-specific holidays yet. Click "Add Year" to customize holidays for a specific year.
+          No holidays configured. Click "Add Year" to add holidays for a specific year.
         </CardContent>
       ) : (
-        <CardContent className="p-0">
-          {/* Year tabs */}
-          <div className="flex flex-wrap border-b border-border/40 bg-muted/20 px-4 pt-3 gap-1">
-            {allYears.map(yr => (
-              <div key={yr} className="flex items-center">
-                <button
-                  type="button"
-                  onClick={() => setActiveYear(yr)}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-t-md border-b-2 transition-colors ${activeYear === yr ? "border-primary text-primary bg-background" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-                >
-                  {yr}
-                </button>
-                {!disabled && activeYear === yr && (
-                  <button
-                    type="button"
-                    onClick={() => removeYear(yr)}
-                    className="ml-1 text-muted-foreground/50 hover:text-destructive transition-colors"
-                    title={`Remove ${yr}`}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
+        <CardContent className="p-0 divide-y divide-border/40">
+          {allYears.map(yr => (
+            <div key={yr} className="p-4 sm:p-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="w-4 h-4 text-primary" />
+                <span className="font-semibold text-foreground">{yr}</span>
               </div>
-            ))}
-          </div>
-
-          {activeYear && holidaysByYear[activeYear] && (
-            <div className="p-4 sm:p-6">
               <YearHolidayEditor
-                yearKey={activeYear}
+                yearKey={yr}
                 control={control}
                 form={form}
                 disabled={disabled}
               />
+              {!disabled && (
+                <div className="pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => removeYear(yr)}
+                    className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Erase {yr}
+                  </Button>
+                </div>
+              )}
             </div>
-          )}
+          ))}
         </CardContent>
       )}
 
@@ -222,7 +210,7 @@ function HolidaysByYearSection({ control, form, disabled, defaultHolidays }: {
           <DialogHeader>
             <DialogTitle>Add Year</DialogTitle>
             <DialogDescription>
-              Holidays will be pre-filled from your Default list. Edit them for that year's specific dates.
+              Holidays will be pre-filled from your existing list. Edit them for that year's specific dates.
             </DialogDescription>
           </DialogHeader>
           <div className="py-2">

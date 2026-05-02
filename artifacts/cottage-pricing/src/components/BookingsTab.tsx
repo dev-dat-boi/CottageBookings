@@ -112,17 +112,19 @@ export function BookingsTab() {
 
                 {/* Summary cards */}
                 <div className="grid grid-cols-3 gap-2 sm:gap-4">
-                  <div className="bg-card border border-border/40 p-3 sm:p-6 rounded-xl text-center shadow-sm">
-                    <p className="text-xs sm:text-sm text-muted-foreground font-medium mb-1 leading-tight">Total Nights</p>
-                    <p className="text-xl sm:text-3xl font-bold text-foreground">{result.nights}</p>
+                  <div className="bg-card border border-border/40 p-2 sm:p-6 rounded-xl text-center shadow-sm min-w-0">
+                    <p className="text-[10px] sm:text-sm text-muted-foreground font-medium mb-0.5 leading-tight">Nights</p>
+                    <p className="text-base sm:text-3xl font-bold text-foreground">{result.nights}</p>
                   </div>
-                  <div className="bg-card border border-border/40 p-3 sm:p-6 rounded-xl text-center shadow-sm">
-                    <p className="text-xs sm:text-sm text-muted-foreground font-medium mb-1 leading-tight">Total Price</p>
-                    <p className="text-lg sm:text-3xl font-bold text-primary break-all">${result.totalPrice.toFixed(2)}</p>
+                  <div className="bg-card border border-border/40 p-2 sm:p-6 rounded-xl text-center shadow-sm min-w-0">
+                    <p className="text-[10px] sm:text-sm text-muted-foreground font-medium mb-0.5 leading-tight">Total</p>
+                    <p className="text-sm sm:text-3xl font-bold text-primary leading-tight">${result.totalPrice.toFixed(0)}</p>
+                    <p className="text-[9px] sm:hidden text-muted-foreground">.{String(Math.round((result.totalPrice % 1) * 100)).padStart(2, "0")}</p>
                   </div>
-                  <div className="bg-card border border-border/40 p-3 sm:p-6 rounded-xl text-center shadow-sm">
-                    <p className="text-xs sm:text-sm text-muted-foreground font-medium mb-1 leading-tight">Avg / Night</p>
-                    <p className="text-lg sm:text-3xl font-bold text-foreground break-all">${result.avgDailyRate.toFixed(2)}</p>
+                  <div className="bg-card border border-border/40 p-2 sm:p-6 rounded-xl text-center shadow-sm min-w-0">
+                    <p className="text-[10px] sm:text-sm text-muted-foreground font-medium mb-0.5 leading-tight">Avg/Night</p>
+                    <p className="text-sm sm:text-3xl font-bold text-foreground leading-tight">${result.avgDailyRate.toFixed(0)}</p>
+                    <p className="text-[9px] sm:hidden text-muted-foreground">.{String(Math.round((result.avgDailyRate % 1) * 100)).padStart(2, "0")}</p>
                   </div>
                 </div>
 

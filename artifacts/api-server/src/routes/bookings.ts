@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, dayOverridesTable } from "@workspace/db";
-import { computeEntry, parseSeasons, parseHolidays } from "../lib/pricing";
+import { computeEntry, parseSeasons, parseHolidays, parseHolidaysByYear, holidaysForDate } from "../lib/pricing";
 import type { Override } from "../lib/pricing";
 import { CalculateBookingBody } from "@workspace/api-zod";
 import { ensureDefaultSettings } from "./settings";
@@ -35,6 +35,7 @@ router.post("/bookings/calculate", async (req, res) => {
     const s = rows[0];
     const seasons = parseSeasons(s.seasonsJson);
     const holidays = parseHolidays(s.holidaysJson);
+    const byYear = parseHolidaysByYear(s.holidaysByYearJson ?? "{}");
 
     const overrideRows = await db.select().from(dayOverridesTable);
     const overrides = new Map<string, Override>();
@@ -49,8 +50,9 @@ router.post("/bookings/calculate", async (req, res) => {
     const breakdown = [];
     for (let d = new Date(start); d < end; d.setUTCDate(d.getUTCDate() + 1)) {
       const dateStr = d.toISOString().slice(0, 10);
+      const dateHolidays = holidaysForDate(new Date(d), byYear, holidays);
       breakdown.push(
-        computeEntry(new Date(d), s, seasons, holidays, overrides.get(dateStr) ?? null, effectiveRateType, effectiveMultipliers)
+        computeEntry(new Date(d), s, seasons, dateHolidays, overrides.get(dateStr) ?? null, effectiveRateType, effectiveMultipliers)
       );
     }
 
