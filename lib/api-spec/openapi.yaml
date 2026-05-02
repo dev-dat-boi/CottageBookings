@@ -200,6 +200,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/RentalEntry"
 
+  /rentals/confirm/{token}:
+    get:
+      operationId: getBookingByToken
+      tags: [rentals]
+      summary: Get public booking status by confirmation token (no auth required)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Booking confirmation details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingConfirmation"
+        "404":
+          description: Not found
+
   /rentals/{id}:
     get:
       operationId: getRental
@@ -724,7 +745,43 @@ components:
           type: string
         status:
           type: string
+        confirmationToken:
+          type: string
+          nullable: true
       required: [id, createdAt, renterName, phone, email, startDate, endDate, nights, totalPrice, rateType, bookingType, extraDetails, status]
+
+    BookingConfirmation:
+      type: object
+      description: Public-safe booking status (no private contact details)
+      properties:
+        id:
+          type: integer
+        confirmationToken:
+          type: string
+        renterName:
+          type: string
+        startDate:
+          type: string
+        endDate:
+          type: string
+        nights:
+          type: integer
+        totalPrice:
+          type: number
+        agreedPrice:
+          type: number
+          nullable: true
+        rateType:
+          type: string
+        bookingType:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+        extraDetails:
+          type: string
+      required: [id, confirmationToken, renterName, startDate, endDate, nights, totalPrice, rateType, bookingType, status, createdAt, extraDetails]
 
     RentalInput:
       type: object

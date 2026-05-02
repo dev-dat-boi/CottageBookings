@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomUUID } from "crypto";
 import { db, rentalsTable, settingsTable, ownerApprovalsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { CreateRentalBody, UpdateRentalBody } from "@workspace/api-zod";
@@ -33,6 +34,25 @@ function rowToApi(row: typeof rentalsTable.$inferSelect) {
     bookingType: row.bookingType,
     extraDetails: row.extraDetails,
     status: row.status,
+    confirmationToken: row.confirmationToken ?? null,
+  };
+}
+
+function rowToPublic(row: typeof rentalsTable.$inferSelect) {
+  return {
+    id: row.id,
+    confirmationToken: row.confirmationToken ?? "",
+    renterName: row.renterName,
+    startDate: row.startDate,
+    endDate: row.endDate,
+    nights: row.nights,
+    totalPrice: row.totalPrice,
+    agreedPrice: row.agreedPrice ?? null,
+    rateType: row.rateType,
+    bookingType: row.bookingType,
+    status: row.status,
+    createdAt: row.createdAt.toISOString(),
+    extraDetails: row.extraDetails,
   };
 }
 
@@ -49,7 +69,6 @@ async function checkAndAutoConfirm(rentalId: number) {
   if (rentals.length === 0) return;
   const rental = rentals[0];
 
-  // Send emails
   const ownerEmails = approvals.map(a => a.ownerEmail).filter(Boolean);
   if (ownerEmails.length > 0) {
     const ical = buildIcalDataUrl(rental);
@@ -80,10 +99,10 @@ router.post("/rentals", async (req, res) => {
     return;
   }
   const body = parsed.data;
-  const user = extractToken(req);
   try {
     const owners = await getOwners();
     const initialStatus = owners.length === 0 ? "submitted" : "pending_approval";
+    const token = randomUUID();
     const inserted = await db.insert(rentalsTable).values({
       renterName: body.renterName,
       phone: body.phone,
@@ -96,6 +115,7 @@ router.post("/rentals", async (req, res) => {
       bookingType: (body as any).bookingType ?? "standard",
       extraDetails: body.extraDetails ?? "",
       status: initialStatus,
+      confirmationToken: token,
     }).returning();
     const rental = inserted[0];
 
@@ -108,17 +128,29 @@ router.post("/rentals", async (req, res) => {
           approved: false,
         });
       }
-    } else {
-      // No owners — send notification emails immediately
-      const ical = buildIcalDataUrl(rental);
-      const html = buildRentalEmailHtml(rowToApi(rental), ical, false);
-      // No owners to email
     }
 
     res.status(201).json(rowToApi(rental));
   } catch (err) {
     req.log.error({ err }, "Failed to create rental");
     res.status(500).json({ error: "Failed to create rental" });
+  }
+});
+
+// Public confirmation endpoint — must be declared BEFORE /rentals/:id
+router.get("/rentals/confirm/:token", async (req, res) => {
+  const { token } = req.params;
+  try {
+    const rows = await db.select().from(rentalsTable)
+      .where(eq(rentalsTable.confirmationToken, token));
+    if (rows.length === 0) {
+      res.status(404).json({ error: "Booking not found" });
+      return;
+    }
+    res.json(rowToPublic(rows[0]));
+  } catch (err) {
+    req.log.error({ err }, "Failed to get booking by token");
+    res.status(500).json({ error: "Server error" });
   }
 });
 
@@ -195,7 +227,6 @@ router.delete("/rentals/:id", async (req, res) => {
   }
 });
 
-// Approval routes
 router.get("/rentals/:id/approvals", async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }

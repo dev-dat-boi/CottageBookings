@@ -49,6 +49,7 @@ export const rentalsTable = pgTable("rentals", {
   bookingType: text("booking_type").notNull().default('standard'),
   extraDetails: text("extra_details").notNull().default(''),
   status: text("status").notNull().default('pending_approval'),
+  confirmationToken: text("confirmation_token").unique(),
 });
 
 export const ownerApprovalsTable = pgTable("owner_approvals", {

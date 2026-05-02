@@ -18,6 +18,7 @@ import type {
 
 import type {
   ApprovalPatch,
+  BookingConfirmation,
   BookingRequest,
   BookingResult,
   BulkDaysRequest,
@@ -884,6 +885,94 @@ export const useCreateRental = <
 > => {
   return useMutation(getCreateRentalMutationOptions(options));
 };
+
+/**
+ * @summary Get public booking status by confirmation token (no auth required)
+ */
+export const getGetBookingByTokenUrl = (token: string) => {
+  return `/api/rentals/confirm/${token}`;
+};
+
+export const getBookingByToken = async (
+  token: string,
+  options?: RequestInit,
+): Promise<BookingConfirmation> => {
+  return customFetch<BookingConfirmation>(getGetBookingByTokenUrl(token), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetBookingByTokenQueryKey = (token: string) => {
+  return [`/api/rentals/confirm/${token}`] as const;
+};
+
+export const getGetBookingByTokenQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBookingByToken>>,
+  TError = ErrorType<void>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBookingByToken>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetBookingByTokenQueryKey(token);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getBookingByToken>>
+  > = ({ signal }) => getBookingByToken(token, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!token,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBookingByToken>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBookingByTokenQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBookingByToken>>
+>;
+export type GetBookingByTokenQueryError = ErrorType<void>;
+
+/**
+ * @summary Get public booking status by confirmation token (no auth required)
+ */
+
+export function useGetBookingByToken<
+  TData = Awaited<ReturnType<typeof getBookingByToken>>,
+  TError = ErrorType<void>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBookingByToken>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBookingByTokenQueryOptions(token, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Get a single rental

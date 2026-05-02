@@ -7,6 +7,7 @@
  */
 
 export * from "./approvalPatch";
+export * from "./bookingConfirmation";
 export * from "./bookingRequest";
 export * from "./bookingResult";
 export * from "./bulkDaysRequest";

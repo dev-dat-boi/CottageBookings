@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
+import BookingConfirmationPage from "@/pages/BookingConfirmationPage";
 import { AdminLockProvider } from "@/contexts/AdminLockContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 
@@ -13,6 +14,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/booking/:token" component={BookingConfirmationPage} />
       <Route component={NotFound} />
     </Switch>
   );

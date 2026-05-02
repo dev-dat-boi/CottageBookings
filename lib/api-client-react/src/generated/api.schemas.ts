@@ -123,6 +123,26 @@ export interface RentalEntry {
   bookingType: string;
   extraDetails: string;
   status: string;
+  confirmationToken?: string | null;
+}
+
+/**
+ * Public-safe booking status (no private contact details)
+ */
+export interface BookingConfirmation {
+  id: number;
+  confirmationToken: string;
+  renterName: string;
+  startDate: string;
+  endDate: string;
+  nights: number;
+  totalPrice: number;
+  agreedPrice?: number | null;
+  rateType: string;
+  bookingType: string;
+  status: string;
+  createdAt: string;
+  extraDetails: string;
 }
 
 export interface RentalInput {

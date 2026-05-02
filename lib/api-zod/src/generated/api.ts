@@ -341,6 +341,7 @@ export const GetRentalsResponseItem = zod.object({
   bookingType: zod.string(),
   extraDetails: zod.string(),
   status: zod.string(),
+  confirmationToken: zod.string().nullish(),
 });
 export const GetRentalsResponse = zod.array(GetRentalsResponseItem);
 
@@ -359,6 +360,31 @@ export const CreateRentalBody = zod.object({
   bookingType: zod.string().optional(),
   extraDetails: zod.string().optional(),
 });
+
+/**
+ * @summary Get public booking status by confirmation token (no auth required)
+ */
+export const GetBookingByTokenParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const GetBookingByTokenResponse = zod
+  .object({
+    id: zod.number(),
+    confirmationToken: zod.string(),
+    renterName: zod.string(),
+    startDate: zod.string(),
+    endDate: zod.string(),
+    nights: zod.number(),
+    totalPrice: zod.number(),
+    agreedPrice: zod.number().nullish(),
+    rateType: zod.string(),
+    bookingType: zod.string(),
+    status: zod.string(),
+    createdAt: zod.string(),
+    extraDetails: zod.string(),
+  })
+  .describe("Public-safe booking status (no private contact details)");
 
 /**
  * @summary Get a single rental
@@ -382,6 +408,7 @@ export const GetRentalResponse = zod.object({
   bookingType: zod.string(),
   extraDetails: zod.string(),
   status: zod.string(),
+  confirmationToken: zod.string().nullish(),
 });
 
 /**
@@ -417,6 +444,7 @@ export const UpdateRentalResponse = zod.object({
   bookingType: zod.string(),
   extraDetails: zod.string(),
   status: zod.string(),
+  confirmationToken: zod.string().nullish(),
 });
 
 /**
@@ -476,6 +504,7 @@ export const SetRentalApprovalResponse = zod.object({
   bookingType: zod.string(),
   extraDetails: zod.string(),
   status: zod.string(),
+  confirmationToken: zod.string().nullish(),
 });
 
 /**

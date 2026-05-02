@@ -6,12 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface RentalEntry {
+/**
+ * Public-safe booking status (no private contact details)
+ */
+export interface BookingConfirmation {
   id: number;
-  createdAt: string;
+  confirmationToken: string;
   renterName: string;
-  phone: string;
-  email: string;
   startDate: string;
   endDate: string;
   nights: number;
@@ -19,7 +20,7 @@ export interface RentalEntry {
   agreedPrice?: number | null;
   rateType: string;
   bookingType: string;
-  extraDetails: string;
   status: string;
-  confirmationToken?: string | null;
+  createdAt: string;
+  extraDetails: string;
 }

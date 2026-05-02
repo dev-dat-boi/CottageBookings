@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useLocation } from "wouter";
 import { DayPicker, DateRange } from "react-day-picker";
 import { format, eachDayOfInterval, parseISO } from "date-fns";
 import "react-day-picker/dist/style.css";
@@ -24,6 +25,7 @@ export function BookingsTab() {
   const { toast } = useToast();
   const { isLoggedIn, user } = useAuth();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [showRateDialog, setShowRateDialog] = useState(false);
   const [showBookDialog, setShowBookDialog] = useState(false);
@@ -91,16 +93,17 @@ export function BookingsTab() {
         },
       },
       {
-        onSuccess: () => {
+        onSuccess: (data) => {
           queryClient.invalidateQueries({ queryKey: getGetRentalsQueryKey() });
           setShowBookDialog(false);
-          setDateRange(undefined);
-          calculateMutation.reset();
-          setChosenRate(null);
-          toast({
-            title: "Booking request submitted!",
-            description: "An owner will review and confirm your booking soon.",
-          });
+          if (data.confirmationToken) {
+            navigate(`/booking/${data.confirmationToken}`);
+          } else {
+            toast({
+              title: "Booking request submitted!",
+              description: "An owner will review and confirm your booking soon.",
+            });
+          }
         },
         onError: () => toast({ title: "Error", description: "Failed to submit booking.", variant: "destructive" }),
       }
