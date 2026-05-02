@@ -4,7 +4,8 @@ import { BookingsTab } from "@/components/BookingsTab";
 import { ControlPanelTab } from "@/components/ControlPanelTab";
 import { CalendarTab } from "@/components/CalendarTab";
 import { HistoryTab } from "@/components/HistoryTab";
-import { Trees, History } from "lucide-react";
+import { RentalsTab } from "@/components/RentalsTab";
+import { Trees, History, BookMarked } from "lucide-react";
 import { useAdminLock } from "@/contexts/AdminLockContext";
 
 export default function Dashboard() {
@@ -38,10 +39,16 @@ export default function Dashboard() {
                 Calendar
               </TabsTrigger>
               {isLockEnabled && (
-                <TabsTrigger value="history" className="px-3 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap flex items-center gap-1.5">
-                  <History className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                  History
-                </TabsTrigger>
+                <>
+                  <TabsTrigger value="rentals" className="px-3 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap flex items-center gap-1.5">
+                    <BookMarked className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                    Rentals
+                  </TabsTrigger>
+                  <TabsTrigger value="history" className="px-3 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap flex items-center gap-1.5">
+                    <History className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                    History
+                  </TabsTrigger>
+                </>
               )}
             </TabsList>
           </div>
@@ -54,6 +61,9 @@ export default function Dashboard() {
           </TabsContent>
           <TabsContent value="calendar" className="mt-0 outline-none">
             <CalendarTab />
+          </TabsContent>
+          <TabsContent value="rentals" className="mt-0 outline-none">
+            <RentalsTab />
           </TabsContent>
           <TabsContent value="history" className="mt-0 outline-none">
             <HistoryTab />

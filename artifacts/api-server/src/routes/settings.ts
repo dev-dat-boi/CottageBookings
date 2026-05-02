@@ -13,12 +13,17 @@ function parseHolidaysByYear(json: string): Record<string, ReturnType<typeof par
   }
 }
 
+function parseOwners(json: string): { name: string; email: string }[] {
+  try { const a = JSON.parse(json); return Array.isArray(a) ? a : []; } catch { return []; }
+}
+
 const router = Router();
 
 function rowToApi(row: typeof settingsTable.$inferSelect) {
   const seasons = parseSeasons(row.seasonsJson);
   const holidays = parseHolidays(row.holidaysJson);
   const holidaysByYear = parseHolidaysByYear(row.holidaysByYearJson ?? "{}");
+  const owners = parseOwners((row as any).ownersJson ?? "[]");
   return {
     basePrice: row.basePrice,
     familyRate: row.familyRate,
@@ -34,6 +39,7 @@ function rowToApi(row: typeof settingsTable.$inferSelect) {
     },
     holidays,
     holidaysByYear,
+    owners,
   };
 }
 
@@ -96,9 +102,9 @@ router.put("/settings", async (req, res) => {
       seasonsJson: JSON.stringify(body.seasons),
       holidaysJson: JSON.stringify(body.holidays),
       holidaysByYearJson: JSON.stringify(body.holidaysByYear ?? {}),
-    }).where(eq(settingsTable.id, 1));
+      ownersJson: JSON.stringify(body.owners ?? []),
+    } as any).where(eq(settingsTable.id, 1));
 
-    // Log the change
     const yearKeys = Object.keys(body.holidaysByYear ?? {});
     const changeDesc = `Settings saved: base $${body.basePrice}, family $${body.familyRate}, ${body.seasons.length} seasons, ${body.holidays.length} default holidays${yearKeys.length > 0 ? `, per-year overrides for ${yearKeys.join(", ")}` : ""}`;
     await db.insert(changeHistoryTable).values({

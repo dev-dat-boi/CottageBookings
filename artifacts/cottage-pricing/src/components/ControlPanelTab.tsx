@@ -37,6 +37,11 @@ const seasonSchema = z.object({
   endDate: z.string().refine(v => !v || MD_REGEX.test(v), { message: "Use MM-DD" }).nullable().optional(),
 });
 
+const ownerSchema = z.object({
+  name: z.string().min(1, "Name required"),
+  email: z.string().email("Valid email required"),
+});
+
 const settingsSchema = z.object({
   basePrice: z.coerce.number().min(0),
   familyRate: z.coerce.number().min(0),
@@ -52,6 +57,7 @@ const settingsSchema = z.object({
   }),
   holidays: z.array(holidaySchema),
   holidaysByYear: z.record(z.string(), z.array(holidaySchema)),
+  owners: z.array(ownerSchema),
 });
 
 type FormValues = z.infer<typeof settingsSchema>;
@@ -346,7 +352,7 @@ export function ControlPanelTab() {
   const form = useForm<FormValues>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
-      basePrice: 300, familyRate: 200, seasons: [], holidays: [], holidaysByYear: {},
+      basePrice: 300, familyRate: 200, seasons: [], holidays: [], holidaysByYear: {}, owners: [],
       dayMultipliers: { Monday: 0.95, Tuesday: 0.95, Wednesday: 0.95, Thursday: 0.95, Friday: 1.1, Saturday: 1.25, Sunday: 1.05 },
     },
   });
@@ -358,7 +364,6 @@ export function ControlPanelTab() {
     if (settings) {
       const defaultHols = settings.holidays ?? [];
       const byYear = (settings.holidaysByYear as Record<string, any>) ?? {};
-      // Auto-port default holidays into 2026 if no year entries exist yet
       const initialByYear = Object.keys(byYear).length === 0
         ? { "2026": defaultHols.map((h: any) => ({ ...h })) }
         : byYear;
@@ -369,12 +374,15 @@ export function ControlPanelTab() {
         dayMultipliers: settings.dayMultipliers,
         holidays: defaultHols,
         holidaysByYear: initialByYear,
+        owners: (settings as any).owners ?? [],
       });
     }
   }, [settings, form]);
 
+  const { fields: ownerFields, append: appendOwner, remove: removeOwner } = useFieldArray({ control: form.control, name: "owners" });
+
   const onSubmit = (data: FormValues) => {
-    updateMutation.mutate({ data }, {
+    updateMutation.mutate({ data: { ...data, owners: data.owners ?? [] } as any }, {
       onSuccess: () => {
         toast({ title: "Settings saved", description: "Pricing rules updated successfully." });
         queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
@@ -461,6 +469,55 @@ export function ControlPanelTab() {
                   <FormField key={day} control={form.control} name={`dayMultipliers.${day}`}
                     render={({ field }) => (<FormItem><FormLabel className="text-sm">{day}</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>)}
                   />
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Owners */}
+            <Card className="border-border/40 shadow-sm md:col-span-2">
+              <CardHeader className="bg-muted/30 border-b border-border/40">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <CardTitle>Owners</CardTitle>
+                    <CardDescription className="text-xs mt-0.5">Owners receive email notifications when rentals are booked or confirmed.</CardDescription>
+                  </div>
+                  {!isLocked && (
+                    <Button type="button" variant="outline" size="sm" onClick={() => appendOwner({ name: "", email: "" })}>
+                      <Plus className="w-4 h-4 mr-1" /> Add Owner
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6 space-y-3">
+                {ownerFields.length === 0 && (
+                  <p className="text-sm text-muted-foreground italic">No owners configured. Add one to receive rental notifications.</p>
+                )}
+                {ownerFields.map((field, index) => (
+                  <div key={field.id} className="flex gap-2 items-start border border-border/30 rounded-lg p-3 bg-muted/10">
+                    <FormField control={form.control} name={`owners.${index}.name`}
+                      render={({ field }) => (
+                        <FormItem className="flex-1 min-w-0">
+                          <FormLabel className="text-xs text-muted-foreground">Name</FormLabel>
+                          <FormControl><Input placeholder="Owner name" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField control={form.control} name={`owners.${index}.email`}
+                      render={({ field }) => (
+                        <FormItem className="flex-1 min-w-0">
+                          <FormLabel className="text-xs text-muted-foreground">Email</FormLabel>
+                          <FormControl><Input type="email" placeholder="owner@example.com" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="mt-5 shrink-0">
+                      <Button type="button" variant="ghost" size="icon" onClick={() => removeOwner(index)} disabled={isLocked} className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
                 ))}
               </CardContent>
             </Card>
