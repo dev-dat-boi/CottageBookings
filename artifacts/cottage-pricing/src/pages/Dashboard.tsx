@@ -7,9 +7,10 @@ import { HistoryTab } from "@/components/HistoryTab";
 import { RentalsTab } from "@/components/RentalsTab";
 import { HomeTab } from "@/components/HomeTab";
 import { UsersTab } from "@/components/UsersTab";
+import { EmailsTab } from "@/components/EmailsTab";
 import { LoginDialog } from "@/components/LoginDialog";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
-import { Trees, History, BookMarked, LogOut, LogIn, Users, Home, Shield, KeyRound, Wrench } from "lucide-react";
+import { Trees, History, BookMarked, LogOut, LogIn, Users, Home, Shield, KeyRound, Wrench, Mail } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -96,10 +97,16 @@ export default function Dashboard() {
                     History
                   </TabsTrigger>
                   {isAdmin && (
-                    <TabsTrigger value="users" className="px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap flex items-center gap-1.5">
-                      <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                      Users
-                    </TabsTrigger>
+                    <>
+                      <TabsTrigger value="users" className="px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap flex items-center gap-1.5">
+                        <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                        Users
+                      </TabsTrigger>
+                      <TabsTrigger value="emails" className="px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap flex items-center gap-1.5">
+                        <Mail className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                        Emails
+                      </TabsTrigger>
+                    </>
                   )}
                 </>
               )}
@@ -113,6 +120,7 @@ export default function Dashboard() {
           <TabsContent value="rentals" className="mt-0 outline-none"><RentalsTab /></TabsContent>
           <TabsContent value="history" className="mt-0 outline-none"><HistoryTab /></TabsContent>
           {isAdmin && <TabsContent value="users" className="mt-0 outline-none"><UsersTab /></TabsContent>}
+          {isAdmin && <TabsContent value="emails" className="mt-0 outline-none"><EmailsTab /></TabsContent>}
         </Tabs>
       </main>
 

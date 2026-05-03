@@ -1,0 +1,250 @@
+import React, { useState, useEffect, useRef } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Save, Mail, Clock, AlertCircle, CheckCircle2, Loader2, Copy, Check } from "lucide-react";
+import {
+  useGetEmailTemplates,
+  useUpdateEmailTemplate,
+  getGetEmailTemplatesQueryKey,
+  type EmailTemplate,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+
+const TEMPLATE_ORDER = ["renter_confirmed", "owner_confirmed"];
+
+interface TemplateEditorProps {
+  template: EmailTemplate;
+}
+
+function TemplateEditor({ template }: TemplateEditorProps) {
+  const queryClient = useQueryClient();
+  const [subject, setSubject] = useState(template.subject);
+  const [body, setBody] = useState(template.body);
+  const [saved, setSaved] = useState(false);
+  const [copiedVar, setCopiedVar] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isDirty = subject !== template.subject || body !== template.body;
+
+  useEffect(() => {
+    setSubject(template.subject);
+    setBody(template.body);
+    setSaved(false);
+  }, [template.type]);
+
+  const { mutate, isPending, isError } = useUpdateEmailTemplate({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetEmailTemplatesQueryKey() });
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      },
+    },
+  });
+
+  function handleSave() {
+    mutate({ type: template.type, data: { subject, body } });
+  }
+
+  function handleReset() {
+    setSubject(template.subject);
+    setBody(template.body);
+  }
+
+  function insertVar(varName: string) {
+    const ta = textareaRef.current;
+    if (!ta) {
+      setBody(prev => prev + varName);
+      return;
+    }
+    const start = ta.selectionStart ?? body.length;
+    const end = ta.selectionEnd ?? body.length;
+    const newBody = body.slice(0, start) + varName + body.slice(end);
+    setBody(newBody);
+    setTimeout(() => {
+      ta.focus();
+      ta.setSelectionRange(start + varName.length, start + varName.length);
+    }, 0);
+  }
+
+  function copyVar(varName: string) {
+    navigator.clipboard.writeText(varName).catch(() => {});
+    setCopiedVar(varName);
+    setTimeout(() => setCopiedVar(null), 1500);
+  }
+
+  const updatedAt = new Date(template.updatedAt);
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Clock className="w-3.5 h-3.5" />
+          Last saved: {updatedAt.toLocaleDateString()} {updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        </div>
+        {saved && (
+          <div className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Saved successfully
+          </div>
+        )}
+        {isError && (
+          <div className="flex items-center gap-1.5 text-xs text-red-600 font-medium">
+            <AlertCircle className="w-3.5 h-3.5" />
+            Failed to save
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor={`subject-${template.type}`} className="text-sm font-medium">
+          Subject Line
+        </Label>
+        <Input
+          id={`subject-${template.type}`}
+          value={subject}
+          onChange={e => setSubject(e.target.value)}
+          placeholder="Email subject..."
+          className="font-mono text-sm"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor={`body-${template.type}`} className="text-sm font-medium">
+          Email Body
+        </Label>
+        <p className="text-xs text-muted-foreground">
+          Click a variable below to insert it at your cursor position, or right-click to copy it.
+        </p>
+        <Textarea
+          ref={textareaRef}
+          id={`body-${template.type}`}
+          value={body}
+          onChange={e => setBody(e.target.value)}
+          placeholder="Email body..."
+          className="font-mono text-sm min-h-[280px] resize-y leading-relaxed"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-sm font-medium">Available Variables</Label>
+        <p className="text-xs text-muted-foreground">
+          Click to insert at cursor · Right-click to copy
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {template.variables.map(v => (
+            <button
+              key={v}
+              onClick={() => insertVar(v)}
+              onContextMenu={e => { e.preventDefault(); copyVar(v); }}
+              title={`Click to insert · Right-click to copy`}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-mono font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors cursor-pointer"
+            >
+              {copiedVar === v ? (
+                <><Check className="w-3 h-3" /> copied</>
+              ) : (
+                <><Copy className="w-3 h-3" />{v}</>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {template.type === "renter_confirmed" && (
+        <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-700">
+          <strong>[ConfirmLink]</strong> — When this variable appears on its own line, it renders as a green "Confirm My Booking" button in the email.
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 pt-1">
+        <Button onClick={handleSave} disabled={isPending || !isDirty} size="sm">
+          {isPending ? (
+            <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving…</>
+          ) : (
+            <><Save className="w-3.5 h-3.5 mr-1.5" />Save Template</>
+          )}
+        </Button>
+        {isDirty && (
+          <Button variant="ghost" size="sm" onClick={handleReset} disabled={isPending}>
+            Reset
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function EmailsTab() {
+  const { data: templates, isLoading, isError } = useGetEmailTemplates();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isError || !templates) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="text-center space-y-2">
+          <AlertCircle className="w-8 h-8 text-destructive mx-auto" />
+          <p className="text-sm text-muted-foreground">Failed to load email templates</p>
+        </div>
+      </div>
+    );
+  }
+
+  const ordered = TEMPLATE_ORDER
+    .map(type => templates.find(t => t.type === type))
+    .filter((t): t is EmailTemplate => !!t)
+    .concat(templates.filter(t => !TEMPLATE_ORDER.includes(t.type)));
+
+  const defaultTab = ordered[0]?.type ?? "";
+
+  return (
+    <div className="space-y-6">
+      <Card className="border border-border/40">
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Mail className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Email Templates</CardTitle>
+              <CardDescription className="text-sm">
+                Customize the emails sent to renters and owners when a booking is confirmed.
+                Use <code className="text-xs bg-muted px-1 py-0.5 rounded">[Variable]</code> placeholders for dynamic content.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <Tabs defaultValue={defaultTab}>
+            <TabsList className="mb-6 h-auto flex-wrap bg-muted/50 border border-border/40 p-1">
+              {ordered.map(t => (
+                <TabsTrigger
+                  key={t.type}
+                  value={t.type}
+                  className="text-xs sm:text-sm px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap"
+                >
+                  {t.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {ordered.map(t => (
+              <TabsContent key={t.type} value={t.type} className="mt-0 outline-none">
+                <TemplateEditor template={t} />
+              </TabsContent>
+            ))}
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

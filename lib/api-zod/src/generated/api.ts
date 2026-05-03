@@ -773,3 +773,55 @@ export const GetHistoryResponse = zod.array(GetHistoryResponseItem);
 export const ClearHistoryResponse = zod.object({
   deleted: zod.number(),
 });
+
+/**
+ * @summary List all email templates (admin only)
+ */
+export const GetEmailTemplatesResponseItem = zod.object({
+  type: zod.string(),
+  name: zod.string(),
+  subject: zod.string(),
+  body: zod.string(),
+  variables: zod.array(zod.string()),
+  updatedAt: zod.string(),
+});
+export const GetEmailTemplatesResponse = zod.array(
+  GetEmailTemplatesResponseItem,
+);
+
+/**
+ * @summary Get a single email template by type (admin only)
+ */
+export const GetEmailTemplateParams = zod.object({
+  type: zod.coerce.string(),
+});
+
+export const GetEmailTemplateResponse = zod.object({
+  type: zod.string(),
+  name: zod.string(),
+  subject: zod.string(),
+  body: zod.string(),
+  variables: zod.array(zod.string()),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Update an email template (admin only)
+ */
+export const UpdateEmailTemplateParams = zod.object({
+  type: zod.coerce.string(),
+});
+
+export const UpdateEmailTemplateBody = zod.object({
+  subject: zod.string().nullish(),
+  body: zod.string().nullish(),
+});
+
+export const UpdateEmailTemplateResponse = zod.object({
+  type: zod.string(),
+  name: zod.string(),
+  subject: zod.string(),
+  body: zod.string(),
+  variables: zod.array(zod.string()),
+  updatedAt: zod.string(),
+});

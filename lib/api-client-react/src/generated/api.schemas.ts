@@ -279,6 +279,20 @@ export interface ChangeHistoryEntry {
   metadata: string;
 }
 
+export interface EmailTemplate {
+  type: string;
+  name: string;
+  subject: string;
+  body: string;
+  variables: string[];
+  updatedAt: string;
+}
+
+export interface EmailTemplatePatch {
+  subject?: string | null;
+  body?: string | null;
+}
+
 export type GetCalendarParams = {
   /**
    * First year to include (defaults to current year)

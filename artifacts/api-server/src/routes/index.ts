@@ -7,6 +7,7 @@ import historyRouter from "./history";
 import rentalsRouter from "./rentals";
 import authRouter from "./auth";
 import cottageRouter from "./cottage";
+import emailTemplatesRouter from "./emailTemplates";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(calendarRouter);
 router.use(bookingsRouter);
 router.use(historyRouter);
 router.use(rentalsRouter);
+router.use(emailTemplatesRouter);
 
 export default router;

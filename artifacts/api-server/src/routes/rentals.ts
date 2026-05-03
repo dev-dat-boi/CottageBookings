@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
-import { db, rentalsTable, settingsTable, ownerApprovalsTable, bookingConfirmationsTable, usersTable } from "@workspace/db";
+import { db, rentalsTable, settingsTable, ownerApprovalsTable, bookingConfirmationsTable, usersTable, emailTemplatesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { CreateRentalBody, UpdateRentalBody } from "@workspace/api-zod";
-import { sendEmail, buildIcalDataUrl, buildRentalEmailHtml } from "../lib/email";
+import { sendEmail, buildIcalDataUrl, buildRentalEmailHtml, buildEmailFromTemplate } from "../lib/email";
+import { EMAIL_TEMPLATE_DEFAULTS } from "./emailTemplates";
 import { ensureDefaultSettings } from "./settings";
 import { extractToken, requireAuth } from "../lib/auth";
 
@@ -262,17 +263,42 @@ router.patch("/rentals/:id", async (req, res) => {
 
     if (sendOwnerEmail || sendRenterEmail) {
       const ical = buildIcalDataUrl(rental);
+      const tmplRows = await db.select().from(emailTemplatesTable);
+      const tmplMap = Object.fromEntries(tmplRows.map(t => [t.type, t]));
+
+      const buildVars = (r: typeof rental) => ({
+        Name: r.renterName,
+        Phone: r.phone ?? "",
+        Email: r.email ?? "",
+        StartDate: r.startDate,
+        EndDate: r.endDate,
+        Nights: String(r.nights),
+        Total: (r.agreedPrice ?? r.totalPrice).toFixed(2),
+        AgreedPrice: r.agreedPrice != null ? r.agreedPrice.toFixed(2) : (r.totalPrice ?? 0).toFixed(2),
+        RateType: r.rateType === "family" ? "Family Rate" : "Standard Rate",
+        ExtraDetails: r.extraDetails ?? "",
+      });
+
       if (sendOwnerEmail) {
         const owners = await getOwners();
         const ownerEmails = owners.map(o => o.email).filter(Boolean);
         if (ownerEmails.length > 0) {
-          const html = buildRentalEmailHtml({ ...apiRental, agreedPrice: rental.agreedPrice ?? null }, ical, false);
-          sendEmail({ to: ownerEmails, subject: `Rental Confirmed - ${rental.renterName}`, html }).catch(() => {});
+          const def = EMAIL_TEMPLATE_DEFAULTS.owner_confirmed;
+          const tmpl = tmplMap["owner_confirmed"] ?? def;
+          const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, buildVars(rental), ical);
+          sendEmail({ to: ownerEmails, subject, html }).catch(() => {});
         }
       }
       if (sendRenterEmail && rental.email) {
-        const html = buildRentalEmailHtml({ ...apiRental, agreedPrice: rental.agreedPrice ?? null }, ical, true);
-        sendEmail({ to: [rental.email], subject: `Your Cottage Rental is Confirmed — ${rental.startDate} to ${rental.endDate}`, html }).catch(() => {});
+        const def = EMAIL_TEMPLATE_DEFAULTS.renter_confirmed;
+        const tmpl = tmplMap["renter_confirmed"] ?? def;
+        const domains = process.env.REPLIT_DOMAINS?.split(",") ?? [];
+        const baseDomain = domains[0];
+        const baseUrl = baseDomain ? `https://${baseDomain}` : `http://localhost:80`;
+        const confirmUrl = `${baseUrl}/booking/${rental.confirmationToken}`;
+        const vars = { ...buildVars(rental), ConfirmLink: confirmUrl };
+        const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars, ical);
+        sendEmail({ to: [rental.email], subject, html }).catch(() => {});
       }
     }
     res.json(apiRental);
@@ -405,25 +431,38 @@ router.patch("/rentals/:id/confirmations/:userId", requireAuth, async (req, res)
           if (updatedRentals.length > 0) {
             const r = updatedRentals[0];
             const ical = buildIcalDataUrl({ ...r, agreedPrice: r.agreedPrice ?? null });
+            const tmplRows = await db.select().from(emailTemplatesTable);
+            const tmplMap = Object.fromEntries(tmplRows.map(t => [t.type, t]));
+            const buildVars = (row: typeof r) => ({
+              Name: row.renterName,
+              Phone: row.phone ?? "",
+              Email: row.email ?? "",
+              StartDate: row.startDate,
+              EndDate: row.endDate,
+              Nights: String(row.nights),
+              Total: (row.agreedPrice ?? row.totalPrice).toFixed(2),
+              AgreedPrice: row.agreedPrice != null ? row.agreedPrice.toFixed(2) : (row.totalPrice ?? 0).toFixed(2),
+              RateType: row.rateType === "family" ? "Family Rate" : "Standard Rate",
+              ExtraDetails: row.extraDetails ?? "",
+            });
             if (r.email) {
               const domains = process.env.REPLIT_DOMAINS?.split(",") ?? [];
               const baseDomain = domains[0];
               const baseUrl = baseDomain ? `https://${baseDomain}` : `http://localhost:80`;
               const confirmUrl = `${baseUrl}/booking/${r.confirmationToken}`;
-              const confirmSection = `<div style="margin:24px 0;padding:20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;text-align:center;"><p style="margin:0 0 16px;color:#374151;font-size:15px;"><strong>Action required:</strong> Please confirm your booking by clicking the button below.</p><a href="${confirmUrl}" style="display:inline-block;padding:12px 28px;background:#16a34a;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;">✓ Confirm My Booking</a><p style="margin:16px 0 0;font-size:12px;color:#6b7280;">Or visit: <a href="${confirmUrl}" style="color:#16a34a;">${confirmUrl}</a></p></div>`;
-              const baseHtml = buildRentalEmailHtml({ ...rowToApi(r), agreedPrice: r.agreedPrice ?? null }, ical, true);
-              const htmlWithLink = baseHtml.replace('</body>', confirmSection + '</body>');
-              sendEmail({
-                to: [r.email],
-                subject: `Your Cottage Rental is Confirmed — Please Confirm`,
-                html: htmlWithLink,
-              }).catch(() => {});
+              const def = EMAIL_TEMPLATE_DEFAULTS.renter_confirmed;
+              const tmpl = tmplMap["renter_confirmed"] ?? def;
+              const vars = { ...buildVars(r), ConfirmLink: confirmUrl };
+              const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars, ical);
+              sendEmail({ to: [r.email], subject, html }).catch(() => {});
             }
             const owners = await getOwners();
             const ownerEmails = owners.map(o => o.email).filter(Boolean);
             if (ownerEmails.length > 0) {
-              const html = buildRentalEmailHtml({ ...rowToApi(r), agreedPrice: r.agreedPrice ?? null }, ical, false);
-              sendEmail({ to: ownerEmails, subject: `Rental Confirmed - ${r.renterName}`, html }).catch(() => {});
+              const def = EMAIL_TEMPLATE_DEFAULTS.owner_confirmed;
+              const tmpl = tmplMap["owner_confirmed"] ?? def;
+              const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, buildVars(r), ical);
+              sendEmail({ to: ownerEmails, subject, html }).catch(() => {});
             }
           }
         }

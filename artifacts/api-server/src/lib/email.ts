@@ -115,3 +115,47 @@ export function buildRentalEmailHtml(rental: {
   </div>
 </div>`;
 }
+
+export function substituteEmailVars(template: string, vars: Record<string, string>): string {
+  return template.replace(/\[(\w+)\]/g, (_, key) => vars[key] ?? `[${key}]`);
+}
+
+export function buildEmailFromTemplate(
+  templateSubject: string,
+  templateBody: string,
+  vars: Record<string, string>,
+  icalDataUrl?: string,
+): { subject: string; html: string } {
+  const subject = substituteEmailVars(templateSubject, vars);
+  const body = substituteEmailVars(templateBody, vars);
+  const confirmUrl = vars['ConfirmLink'];
+
+  const htmlLines = body.split('\n').map(line => {
+    if (!line.trim()) return '<br>';
+    if (confirmUrl && line.trim() === confirmUrl) {
+      return `<div style="text-align:center;margin:20px 0"><a href="${confirmUrl}" style="display:inline-block;padding:12px 28px;background:#16a34a;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;">✓ Confirm My Booking</a><p style="margin:10px 0 0;font-size:12px;color:#6b7280">Or copy link: <a href="${confirmUrl}" style="color:#16a34a">${confirmUrl}</a></p></div>`;
+    }
+    return `<p style="color:#444;margin:0 0 10px;font-size:14px;line-height:1.65">${line}</p>`;
+  }).join('\n');
+
+  const icalSection = icalDataUrl
+    ? `<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center"><a href="${icalDataUrl}" download="rental.ics" style="color:#2d6a4f;font-size:13px;text-decoration:none;font-weight:500">📅 Download Calendar Event (.ics)</a></div>`
+    : '';
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f3f4f6;margin:0;padding:24px 16px">
+<div style="max-width:580px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
+  <div style="background:#2d6a4f;padding:20px 28px">
+    <h1 style="color:#ffffff;margin:0;font-size:18px;font-weight:600">🌲 Cottage Rental</h1>
+    <p style="color:#a7f3d0;margin:4px 0 0;font-size:13px">Booking Management</p>
+  </div>
+  <div style="padding:28px">
+    ${htmlLines}
+    ${icalSection}
+  </div>
+  <div style="padding:14px 28px;background:#f9fafb;border-top:1px solid #e5e7eb;text-align:center">
+    <p style="color:#9ca3af;font-size:12px;margin:0">Cottage Rental Management System</p>
+  </div>
+</div></body></html>`;
+
+  return { subject, html };
+}

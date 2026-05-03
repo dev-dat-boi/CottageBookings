@@ -23,6 +23,8 @@ export * from "./dayMultipliers";
 export * from "./dayOverrideRequest";
 export * from "./deleteRental200";
 export * from "./deleteUser200";
+export * from "./emailTemplate";
+export * from "./emailTemplatePatch";
 export * from "./forgotPassword200";
 export * from "./forgotPasswordRequest";
 export * from "./getCalendarParams";
