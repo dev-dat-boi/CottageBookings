@@ -23,4 +23,5 @@ export interface BookingConfirmation {
   status: string;
   createdAt: string;
   extraDetails: string;
+  renterConfirmed: boolean;
 }

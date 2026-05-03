@@ -360,6 +360,7 @@ export const GetRentalsResponseItem = zod.object({
   extraDetails: zod.string(),
   status: zod.string(),
   confirmationToken: zod.string().nullish(),
+  renterConfirmed: zod.boolean(),
 });
 export const GetRentalsResponse = zod.array(GetRentalsResponseItem);
 
@@ -401,8 +402,29 @@ export const GetBookingByTokenResponse = zod
     status: zod.string(),
     createdAt: zod.string(),
     extraDetails: zod.string(),
+    renterConfirmed: zod.boolean(),
   })
   .describe("Public-safe booking status (no private contact details)");
+
+/**
+ * @summary Renter confirms their booking via token link (no auth required)
+ */
+export const RenterConfirmBookingBody = zod.object({
+  token: zod.string(),
+});
+
+export const RenterConfirmBookingResponse = zod.object({
+  ok: zod.boolean(),
+  renterConfirmed: zod.boolean(),
+});
+
+/**
+ * @summary Get rental IDs where current user has pending confirmations (auth required)
+ */
+export const GetMyPendingConfirmationsResponse = zod.object({
+  rentalIds: zod.array(zod.number()),
+  urgentRentalIds: zod.array(zod.number()),
+});
 
 /**
  * @summary Get a single rental
@@ -427,6 +449,7 @@ export const GetRentalResponse = zod.object({
   extraDetails: zod.string(),
   status: zod.string(),
   confirmationToken: zod.string().nullish(),
+  renterConfirmed: zod.boolean(),
 });
 
 /**
@@ -445,6 +468,7 @@ export const UpdateRentalBody = zod.object({
   agreedPrice: zod.number().nullish(),
   sendOwnerEmail: zod.boolean().nullish(),
   sendRenterEmail: zod.boolean().nullish(),
+  renterConfirmed: zod.boolean().nullish(),
 });
 
 export const UpdateRentalResponse = zod.object({
@@ -463,6 +487,7 @@ export const UpdateRentalResponse = zod.object({
   extraDetails: zod.string(),
   status: zod.string(),
   confirmationToken: zod.string().nullish(),
+  renterConfirmed: zod.boolean(),
 });
 
 /**
@@ -565,6 +590,7 @@ export const SetRentalApprovalResponse = zod.object({
   extraDetails: zod.string(),
   status: zod.string(),
   confirmationToken: zod.string().nullish(),
+  renterConfirmed: zod.boolean(),
 });
 
 /**

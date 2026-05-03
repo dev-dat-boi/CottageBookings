@@ -126,6 +126,7 @@ export interface RentalEntry {
   extraDetails: string;
   status: string;
   confirmationToken?: string | null;
+  renterConfirmed: boolean;
 }
 
 /**
@@ -145,6 +146,7 @@ export interface BookingConfirmation {
   status: string;
   createdAt: string;
   extraDetails: string;
+  renterConfirmed: boolean;
 }
 
 export interface RentalInput {
@@ -169,6 +171,7 @@ export interface RentalPatch {
   agreedPrice?: number | null;
   sendOwnerEmail?: boolean | null;
   sendRenterEmail?: boolean | null;
+  renterConfirmed?: boolean | null;
 }
 
 export interface OwnerApproval {
@@ -192,6 +195,20 @@ export interface BookingUserConfirmation {
   userEmail: string;
   confirmed: boolean;
   confirmedAt?: string | null;
+}
+
+export interface RenterConfirmBody {
+  token: string;
+}
+
+export interface RenterConfirmResult {
+  ok: boolean;
+  renterConfirmed: boolean;
+}
+
+export interface PendingConfirmationsSummary {
+  rentalIds: number[];
+  urgentRentalIds: number[];
 }
 
 export interface UserConfirmationPatch {

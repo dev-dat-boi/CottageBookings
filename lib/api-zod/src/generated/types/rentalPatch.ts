@@ -15,4 +15,5 @@ export interface RentalPatch {
   agreedPrice?: number | null;
   sendOwnerEmail?: boolean | null;
   sendRenterEmail?: boolean | null;
+  renterConfirmed?: boolean | null;
 }

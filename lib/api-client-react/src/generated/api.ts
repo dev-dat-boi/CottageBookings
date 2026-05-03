@@ -41,9 +41,12 @@ import type {
   LoginBody,
   LoginResponse,
   OwnerApproval,
+  PendingConfirmationsSummary,
   RentalEntry,
   RentalInput,
   RentalPatch,
+  RenterConfirmBody,
+  RenterConfirmResult,
   ResetLinkResponse,
   ResetPassword200,
   ResetPasswordRequest,
@@ -975,6 +978,171 @@ export function useGetBookingByToken<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetBookingByTokenQueryOptions(token, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Renter confirms their booking via token link (no auth required)
+ */
+export const getRenterConfirmBookingUrl = () => {
+  return `/api/rentals/renter-confirm`;
+};
+
+export const renterConfirmBooking = async (
+  renterConfirmBody: RenterConfirmBody,
+  options?: RequestInit,
+): Promise<RenterConfirmResult> => {
+  return customFetch<RenterConfirmResult>(getRenterConfirmBookingUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(renterConfirmBody),
+  });
+};
+
+export const getRenterConfirmBookingMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof renterConfirmBooking>>,
+    TError,
+    { data: BodyType<RenterConfirmBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof renterConfirmBooking>>,
+  TError,
+  { data: BodyType<RenterConfirmBody> },
+  TContext
+> => {
+  const mutationKey = ["renterConfirmBooking"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof renterConfirmBooking>>,
+    { data: BodyType<RenterConfirmBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return renterConfirmBooking(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RenterConfirmBookingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof renterConfirmBooking>>
+>;
+export type RenterConfirmBookingMutationBody = BodyType<RenterConfirmBody>;
+export type RenterConfirmBookingMutationError = ErrorType<void>;
+
+/**
+ * @summary Renter confirms their booking via token link (no auth required)
+ */
+export const useRenterConfirmBooking = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof renterConfirmBooking>>,
+    TError,
+    { data: BodyType<RenterConfirmBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof renterConfirmBooking>>,
+  TError,
+  { data: BodyType<RenterConfirmBody> },
+  TContext
+> => {
+  return useMutation(getRenterConfirmBookingMutationOptions(options));
+};
+
+/**
+ * @summary Get rental IDs where current user has pending confirmations (auth required)
+ */
+export const getGetMyPendingConfirmationsUrl = () => {
+  return `/api/rentals/my-pending-confirmations`;
+};
+
+export const getMyPendingConfirmations = async (
+  options?: RequestInit,
+): Promise<PendingConfirmationsSummary> => {
+  return customFetch<PendingConfirmationsSummary>(
+    getGetMyPendingConfirmationsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetMyPendingConfirmationsQueryKey = () => {
+  return [`/api/rentals/my-pending-confirmations`] as const;
+};
+
+export const getGetMyPendingConfirmationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMyPendingConfirmations>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyPendingConfirmations>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetMyPendingConfirmationsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMyPendingConfirmations>>
+  > = ({ signal }) => getMyPendingConfirmations({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMyPendingConfirmations>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMyPendingConfirmationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMyPendingConfirmations>>
+>;
+export type GetMyPendingConfirmationsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get rental IDs where current user has pending confirmations (auth required)
+ */
+
+export function useGetMyPendingConfirmations<
+  TData = Awaited<ReturnType<typeof getMyPendingConfirmations>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMyPendingConfirmations>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMyPendingConfirmationsQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

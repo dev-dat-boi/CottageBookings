@@ -13,11 +13,20 @@ import { Trees, History, BookMarked, LogOut, LogIn, Users, Home, Shield, KeyRoun
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useGetMyPendingConfirmations, getGetMyPendingConfirmationsQueryKey } from "@workspace/api-client-react";
 
 export default function Dashboard() {
   const { isLoggedIn, isAdmin, isMod, user, logout } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+
+  const { data: pendingConfirmations } = useGetMyPendingConfirmations({
+    query: { queryKey: getGetMyPendingConfirmationsQueryKey(), enabled: isLoggedIn },
+  });
+  const showRentalAlert = isLoggedIn && (
+    (pendingConfirmations?.rentalIds.length ?? 0) > 0 ||
+    (pendingConfirmations?.urgentRentalIds.length ?? 0) > 0
+  );
 
   return (
     <div className="min-h-[100dvh] w-full bg-background flex flex-col">
@@ -75,9 +84,12 @@ export default function Dashboard() {
                   <TabsTrigger value="calendar" className="px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                     Calendar
                   </TabsTrigger>
-                  <TabsTrigger value="rentals" className="px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap flex items-center gap-1.5">
+                  <TabsTrigger value="rentals" className="px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap flex items-center gap-1.5 relative">
                     <BookMarked className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                     Rentals
+                    {showRentalAlert && (
+                      <span className="absolute top-0.5 right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
+                    )}
                   </TabsTrigger>
                   <TabsTrigger value="history" className="px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap flex items-center gap-1.5">
                     <History className="w-3 h-3 sm:w-3.5 sm:h-3.5" />

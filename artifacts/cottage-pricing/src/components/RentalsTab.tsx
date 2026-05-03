@@ -4,6 +4,7 @@ import {
   useGetRentals, useUpdateRental, useDeleteRental, getGetRentalsQueryKey,
   useGetBookingConfirmations, useSetBookingConfirmation, getGetBookingConfirmationsQueryKey,
   useGetSettings, getGetSettingsQueryKey,
+  useGetMyPendingConfirmations, getGetMyPendingConfirmationsQueryKey,
 } from "@workspace/api-client-react";
 import type { RentalEntry, BookingUserConfirmation } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,16 +17,25 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, Phone, Mail, Calendar, Trash2, CheckCircle2, Clock, ChevronRight, Lock, ExternalLink, DollarSign, UserCheck, CalendarX } from "lucide-react";
+import { Loader2, Phone, Mail, Calendar, Trash2, CheckCircle2, Clock, ChevronRight, Lock, ExternalLink, DollarSign, UserCheck, CalendarX, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function RentalsTab() {
   const { isLoggedIn, isAdmin } = useAuth();
   const { data: rentals, isLoading } = useGetRentals({ query: { queryKey: getGetRentalsQueryKey(), enabled: isLoggedIn } });
   const { data: settings } = useGetSettings({ query: { queryKey: getGetSettingsQueryKey() } });
+  const { data: pendingConfs } = useGetMyPendingConfirmations({
+    query: { queryKey: getGetMyPendingConfirmationsQueryKey(), enabled: isLoggedIn },
+  });
   const familyRate = settings?.familyRate ?? null;
   const [selected, setSelected] = useState<RentalEntry | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<RentalEntry | null>(null);
+
+  const myPendingIds = new Set(pendingConfs?.rentalIds ?? []);
+  const urgentIds = new Set(pendingConfs?.urgentRentalIds ?? []);
+
+  // Keep selected in sync with the latest fetched rental data
+  const liveSelected = selected ? (rentals?.find(r => r.id === selected.id) ?? selected) : null;
 
   if (!isLoggedIn) {
     return (
@@ -68,13 +78,15 @@ export function RentalsTab() {
         <div className="grid gap-3">
           {sorted.map(rental => (
             <RentalCard key={rental.id} rental={rental} onOpen={() => setSelected(rental)}
-              onConfirmClick={() => setConfirmDialog(rental)} isAdmin={isAdmin} />
+              onConfirmClick={() => setConfirmDialog(rental)} isAdmin={isAdmin}
+              isUrgent={urgentIds.has(rental.id)}
+              needsMyAction={myPendingIds.has(rental.id)} />
           ))}
         </div>
       )}
 
-      {selected && (
-        <RentalDetailDialog rental={selected} onClose={() => setSelected(null)}
+      {liveSelected && (
+        <RentalDetailDialog rental={liveSelected} onClose={() => setSelected(null)}
           onConfirmClick={(r) => { setSelected(null); setConfirmDialog(r); }} isAdmin={isAdmin} familyRate={familyRate} />
       )}
       {confirmDialog && <ConfirmEmailDialog rental={confirmDialog} onClose={() => setConfirmDialog(null)} />}
@@ -111,11 +123,16 @@ function buildGoogleCalendarUrl(rental: RentalEntry): string {
   return `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}`;
 }
 
-function RentalCard({ rental, onOpen, onConfirmClick, isAdmin }: {
-  rental: RentalEntry; onOpen: () => void; onConfirmClick: () => void; isAdmin: boolean;
+function RentalCard({ rental, onOpen, onConfirmClick, isAdmin, isUrgent, needsMyAction }: {
+  rental: RentalEntry; onOpen: () => void; onConfirmClick: () => void; isAdmin: boolean; isUrgent?: boolean; needsMyAction?: boolean;
 }) {
+  const urgencyClass = isUrgent
+    ? "border-red-300 bg-red-50/40 ring-1 ring-red-200/60"
+    : needsMyAction
+      ? "border-amber-300 bg-amber-50/30 ring-1 ring-amber-200/60"
+      : "border-border/40";
   return (
-    <Card className="border-border/40 shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={onOpen}>
+    <Card className={`${urgencyClass} shadow-sm hover:shadow-md transition-shadow cursor-pointer`} onClick={onOpen}>
       <CardContent className="p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="min-w-0 flex-1">
@@ -129,6 +146,20 @@ function RentalCard({ rental, onOpen, onConfirmClick, isAdmin }: {
               {rental.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{rental.email}</span>}
               <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{rental.startDate} → {rental.endDate} ({rental.nights}n)</span>
             </div>
+            {(isUrgent || needsMyAction) && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {isUrgent && (
+                  <Badge className="bg-red-100 text-red-700 border-red-200 text-xs hover:bg-red-100">
+                    <AlertTriangle className="w-2.5 h-2.5 mr-1" />Check-in soon — action needed
+                  </Badge>
+                )}
+                {!isUrgent && needsMyAction && (
+                  <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs hover:bg-amber-100">
+                    <Clock className="w-2.5 h-2.5 mr-1" />Your confirmation needed
+                  </Badge>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <div className="text-right">
@@ -153,6 +184,7 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin, familyRa
   const updateMutation = useUpdateRental();
   const deleteMutation = useDeleteRental();
   const [editing, setEditing] = useState(false);
+  const [renterConfirmedState, setRenterConfirmedState] = useState(rental.renterConfirmed);
   const [form, setForm] = useState({
     renterName: rental.renterName, phone: rental.phone, email: rental.email,
     extraDetails: rental.extraDetails, agreedPrice: rental.agreedPrice != null ? String(rental.agreedPrice) : "",
@@ -191,6 +223,21 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin, familyRa
           toast({ title: confirmed ? "Confirmed" : "Confirmation removed" });
         },
         onError: () => toast({ title: "Error", description: "Failed to update confirmation", variant: "destructive" }),
+      }
+    );
+  }
+
+  function handleRenterConfirm(value: boolean) {
+    updateMutation.mutate(
+      { id: rental.id, data: { renterConfirmed: value } },
+      {
+        onSuccess: () => {
+          setRenterConfirmedState(value);
+          queryClient.invalidateQueries({ queryKey: getGetRentalsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetMyPendingConfirmationsQueryKey() });
+          toast({ title: value ? "Renter marked as confirmed" : "Renter confirmation revoked" });
+        },
+        onError: () => toast({ title: "Error", description: "Failed", variant: "destructive" }),
       }
     );
   }
@@ -322,6 +369,37 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin, familyRa
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Renter Confirmation status — shown when booking is confirmed */}
+        {!editing && rental.status === "confirmed" && (
+          <div className="border border-border/40 rounded-lg p-3 bg-emerald-50/40 dark:bg-emerald-950/10">
+            <p className="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-2">
+              <Mail className="w-3.5 h-3.5 text-emerald-500" /> Renter Confirmation
+            </p>
+            <div className="flex items-center justify-between gap-2">
+              {renterConfirmedState ? (
+                <Badge className="bg-green-100 text-green-700 border-green-200 text-xs hover:bg-green-100">
+                  <CheckCircle2 className="w-2.5 h-2.5 mr-1" />Renter Confirmed
+                </Badge>
+              ) : (
+                <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs hover:bg-amber-100">
+                  <Clock className="w-2.5 h-2.5 mr-1" />Awaiting Renter
+                </Badge>
+              )}
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 text-xs px-2"
+                  onClick={() => handleRenterConfirm(!renterConfirmedState)}
+                  disabled={updateMutation.isPending}
+                >
+                  {renterConfirmedState ? "Revoke" : "Confirm on Behalf"}
+                </Button>
+              )}
+            </div>
           </div>
         )}
 

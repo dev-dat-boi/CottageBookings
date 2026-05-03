@@ -51,6 +51,7 @@ export const rentalsTable = pgTable("rentals", {
   extraDetails: text("extra_details").notNull().default(''),
   status: text("status").notNull().default('pending_approval'),
   confirmationToken: text("confirmation_token").unique(),
+  renterConfirmed: boolean("renter_confirmed").notNull().default(false),
 });
 
 export const ownerApprovalsTable = pgTable("owner_approvals", {

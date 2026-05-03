@@ -35,6 +35,7 @@ function rowToApi(row: typeof rentalsTable.$inferSelect) {
     extraDetails: row.extraDetails,
     status: row.status,
     confirmationToken: row.confirmationToken ?? null,
+    renterConfirmed: row.renterConfirmed,
   };
 }
 
@@ -76,6 +77,7 @@ function rowToPublic(row: typeof rentalsTable.$inferSelect) {
     status: row.status,
     createdAt: row.createdAt.toISOString(),
     extraDetails: row.extraDetails,
+    renterConfirmed: row.renterConfirmed,
   };
 }
 
@@ -179,6 +181,46 @@ router.get("/rentals/confirm/:token", async (req, res) => {
   }
 });
 
+// Renter confirms their booking via token link — no auth required
+router.post("/rentals/renter-confirm", async (req, res) => {
+  const { token } = req.body;
+  if (!token || typeof token !== "string") { res.status(400).json({ error: "token required" }); return; }
+  try {
+    const rows = await db.select().from(rentalsTable).where(eq(rentalsTable.confirmationToken, token));
+    if (rows.length === 0) { res.status(404).json({ error: "Booking not found" }); return; }
+    await db.update(rentalsTable).set({ renterConfirmed: true }).where(eq(rentalsTable.confirmationToken, token));
+    res.json({ ok: true, renterConfirmed: true });
+  } catch (err) {
+    req.log.error({ err }, "Failed to confirm booking as renter");
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Get rental IDs where current user has pending confirmations — auth required
+router.get("/rentals/my-pending-confirmations", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  try {
+    const myConfs = await db.select().from(bookingConfirmationsTable)
+      .where(and(eq(bookingConfirmationsTable.userId, user.userId), eq(bookingConfirmationsTable.confirmed, false)));
+    const rentalIds = myConfs.map(c => c.rentalId);
+
+    const twoWeeks = new Date();
+    twoWeeks.setDate(twoWeeks.getDate() + 14);
+    const now = new Date();
+    const allRentals = await db.select().from(rentalsTable);
+    const urgentRentalIds = allRentals.filter(r => {
+      if (r.status === "cancelled") return false;
+      const startDate = new Date(r.startDate + "T12:00:00");
+      return startDate > now && startDate <= twoWeeks && (r.status !== "confirmed" || !r.renterConfirmed);
+    }).map(r => r.id);
+
+    res.json({ rentalIds, urgentRentalIds });
+  } catch (err) {
+    req.log.error({ err }, "Failed to get pending confirmations");
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 router.get("/rentals/:id", async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -197,7 +239,7 @@ router.patch("/rentals/:id", async (req, res) => {
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = UpdateRentalBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid data", details: parsed.error.issues }); return; }
-  const { status, renterName, phone, email, extraDetails, agreedPrice, sendOwnerEmail, sendRenterEmail } = parsed.data;
+  const { status, renterName, phone, email, extraDetails, agreedPrice, sendOwnerEmail, sendRenterEmail, renterConfirmed } = parsed.data;
   try {
     const updates: Partial<typeof rentalsTable.$inferInsert> = {};
     if (status != null) updates.status = status;
@@ -206,6 +248,7 @@ router.patch("/rentals/:id", async (req, res) => {
     if (email != null) updates.email = email;
     if (extraDetails != null) updates.extraDetails = extraDetails;
     if (agreedPrice !== undefined) updates.agreedPrice = agreedPrice ?? undefined;
+    if (renterConfirmed != null) updates.renterConfirmed = renterConfirmed;
 
     let updatedRows;
     if (Object.keys(updates).length > 0) {
@@ -363,11 +406,17 @@ router.patch("/rentals/:id/confirmations/:userId", requireAuth, async (req, res)
             const r = updatedRentals[0];
             const ical = buildIcalDataUrl({ ...r, agreedPrice: r.agreedPrice ?? null });
             if (r.email) {
-              const html = buildRentalEmailHtml({ ...rowToApi(r), agreedPrice: r.agreedPrice ?? null }, ical, true);
+              const domains = process.env.REPLIT_DOMAINS?.split(",") ?? [];
+              const baseDomain = domains[0];
+              const baseUrl = baseDomain ? `https://${baseDomain}` : `http://localhost:80`;
+              const confirmUrl = `${baseUrl}/booking/${r.confirmationToken}`;
+              const confirmSection = `<div style="margin:24px 0;padding:20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;text-align:center;"><p style="margin:0 0 16px;color:#374151;font-size:15px;"><strong>Action required:</strong> Please confirm your booking by clicking the button below.</p><a href="${confirmUrl}" style="display:inline-block;padding:12px 28px;background:#16a34a;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;">✓ Confirm My Booking</a><p style="margin:16px 0 0;font-size:12px;color:#6b7280;">Or visit: <a href="${confirmUrl}" style="color:#16a34a;">${confirmUrl}</a></p></div>`;
+              const baseHtml = buildRentalEmailHtml({ ...rowToApi(r), agreedPrice: r.agreedPrice ?? null }, ical, true);
+              const htmlWithLink = baseHtml.replace('</body>', confirmSection + '</body>');
               sendEmail({
                 to: [r.email],
-                subject: `Your Cottage Rental is Confirmed — ${r.startDate} to ${r.endDate}`,
-                html,
+                subject: `Your Cottage Rental is Confirmed — Please Confirm`,
+                html: htmlWithLink,
               }).catch(() => {});
             }
             const owners = await getOwners();

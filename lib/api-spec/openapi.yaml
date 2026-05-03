@@ -221,6 +221,40 @@ paths:
         "404":
           description: Not found
 
+  /rentals/renter-confirm:
+    post:
+      operationId: renterConfirmBooking
+      tags: [rentals]
+      summary: Renter confirms their booking via token link (no auth required)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenterConfirmBody"
+      responses:
+        "200":
+          description: Confirmation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RenterConfirmResult"
+        "404":
+          description: Not found
+
+  /rentals/my-pending-confirmations:
+    get:
+      operationId: getMyPendingConfirmations
+      tags: [rentals]
+      summary: Get rental IDs where current user has pending confirmations (auth required)
+      responses:
+        "200":
+          description: Pending confirmations summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PendingConfirmationsSummary"
+
   /rentals/{id}:
     get:
       operationId: getRental
@@ -890,7 +924,9 @@ components:
         confirmationToken:
           type: string
           nullable: true
-      required: [id, createdAt, renterName, phone, email, startDate, endDate, nights, totalPrice, rateType, bookingType, extraDetails, status]
+        renterConfirmed:
+          type: boolean
+      required: [id, createdAt, renterName, phone, email, startDate, endDate, nights, totalPrice, rateType, bookingType, extraDetails, status, renterConfirmed]
 
     BookingConfirmation:
       type: object
@@ -923,7 +959,9 @@ components:
           type: string
         extraDetails:
           type: string
-      required: [id, confirmationToken, renterName, startDate, endDate, nights, totalPrice, rateType, bookingType, status, createdAt, extraDetails]
+        renterConfirmed:
+          type: boolean
+      required: [id, confirmationToken, renterName, startDate, endDate, nights, totalPrice, rateType, bookingType, status, createdAt, extraDetails, renterConfirmed]
 
     RentalInput:
       type: object
@@ -977,6 +1015,9 @@ components:
         sendRenterEmail:
           type: boolean
           nullable: true
+        renterConfirmed:
+          type: boolean
+          nullable: true
 
     OwnerApproval:
       type: object
@@ -1022,6 +1063,35 @@ components:
           type: string
           nullable: true
       required: [id, rentalId, userId, userName, userEmail, confirmed]
+
+    RenterConfirmBody:
+      type: object
+      properties:
+        token:
+          type: string
+      required: [token]
+
+    RenterConfirmResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        renterConfirmed:
+          type: boolean
+      required: [ok, renterConfirmed]
+
+    PendingConfirmationsSummary:
+      type: object
+      properties:
+        rentalIds:
+          type: array
+          items:
+            type: integer
+        urgentRentalIds:
+          type: array
+          items:
+            type: integer
+      required: [rentalIds, urgentRentalIds]
 
     UserConfirmationPatch:
       type: object

@@ -242,8 +242,8 @@ export function BookingsTab() {
                         <TableRow>
                           <TableHead className="whitespace-nowrap">Date</TableHead>
                           <TableHead className="whitespace-nowrap">Day</TableHead>
-                          <TableHead className="whitespace-nowrap">Season</TableHead>
-                          <TableHead className="whitespace-nowrap">Modifiers</TableHead>
+                          {isLoggedIn && <TableHead className="whitespace-nowrap">Season</TableHead>}
+                          {isLoggedIn && <TableHead className="whitespace-nowrap">Modifiers</TableHead>}
                           <TableHead className="text-right whitespace-nowrap">Price</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -252,28 +252,32 @@ export function BookingsTab() {
                           <TableRow key={entry.date}>
                             <TableCell className="font-medium whitespace-nowrap">{entry.date}</TableCell>
                             <TableCell className="whitespace-nowrap">{entry.dayOfWeek}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="bg-muted/50 font-normal border-border/50 whitespace-nowrap">
-                                {entry.season} ({(entry.seasonMult * 100).toFixed(0)}%)
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-wrap gap-1.5">
-                                {result.includeMultipliers && entry.dayMult !== 1 && (
-                                  <Badge variant="secondary" className="font-normal whitespace-nowrap">
-                                    Day: {((entry.dayMult - 1) * 100).toFixed(0)}%
-                                  </Badge>
-                                )}
-                                {result.includeMultipliers && entry.holiday && (
-                                  <Badge className="bg-accent text-accent-foreground font-normal hover:bg-accent whitespace-nowrap">
-                                    {entry.holiday}: +{(entry.holidayBoost * 100).toFixed(0)}%
-                                  </Badge>
-                                )}
-                                {(!result.includeMultipliers || (entry.dayMult === 1 && !entry.holiday)) && (
-                                  <span className="text-sm text-muted-foreground">—</span>
-                                )}
-                              </div>
-                            </TableCell>
+                            {isLoggedIn && (
+                              <TableCell>
+                                <Badge variant="outline" className="bg-muted/50 font-normal border-border/50 whitespace-nowrap">
+                                  {entry.season} ({(entry.seasonMult * 100).toFixed(0)}%)
+                                </Badge>
+                              </TableCell>
+                            )}
+                            {isLoggedIn && (
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {result.includeMultipliers && entry.dayMult !== 1 && (
+                                    <Badge variant="secondary" className="font-normal whitespace-nowrap">
+                                      Day: {((entry.dayMult - 1) * 100).toFixed(0)}%
+                                    </Badge>
+                                  )}
+                                  {result.includeMultipliers && entry.holiday && (
+                                    <Badge className="bg-accent text-accent-foreground font-normal hover:bg-accent whitespace-nowrap">
+                                      {entry.holiday}: +{(entry.holidayBoost * 100).toFixed(0)}%
+                                    </Badge>
+                                  )}
+                                  {(!result.includeMultipliers || (entry.dayMult === 1 && !entry.holiday)) && (
+                                    <span className="text-sm text-muted-foreground">—</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                            )}
                             <TableCell className="text-right font-bold whitespace-nowrap">
                               ${entry.price.toFixed(2)}
                             </TableCell>
@@ -521,7 +525,7 @@ function RateDialog({ open, onClose, onConfirm, standardRate, familyRate, family
             className={`w-full text-left p-4 rounded-xl border-2 transition-colors ${selected === "standard" ? "border-primary bg-primary/5" : "border-border/40 hover:border-border"}`}
           >
             <div className="font-semibold text-foreground">Standard Rate</div>
-            <div className="text-sm text-muted-foreground mt-0.5">${standardRate}/night base — all multipliers applied</div>
+            <div className="text-sm text-muted-foreground mt-0.5">Standard daily rate · All multipliers applied</div>
           </button>
 
           {/* Family rate — hidden behind code for guests */}
@@ -548,7 +552,7 @@ function RateDialog({ open, onClose, onConfirm, standardRate, familyRate, family
               className={`w-full text-left p-4 rounded-xl border-2 transition-colors ${selected === "family" ? "border-primary bg-primary/5" : "border-border/40 hover:border-border"}`}
             >
               <div className="font-semibold text-foreground">Family Rate</div>
-              <div className="text-sm text-muted-foreground mt-0.5">${familyRate}/night base rate</div>
+              <div className="text-sm text-muted-foreground mt-0.5">Flat daily rate · No surge pricing</div>
             </button>
           )}
 

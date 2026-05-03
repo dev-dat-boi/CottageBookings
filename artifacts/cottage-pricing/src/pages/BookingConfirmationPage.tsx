@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { useGetBookingByToken, getGetBookingByTokenQueryKey } from "@workspace/api-client-react";
+import { useGetBookingByToken, getGetBookingByTokenQueryKey, useRenterConfirmBooking } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -48,6 +49,8 @@ export default function BookingConfirmationPage() {
       retry: 1,
     },
   });
+  const [renterConfirmedLocal, setRenterConfirmedLocal] = useState<boolean | null>(null);
+  const renterConfirmMutation = useRenterConfirmBooking();
 
   if (isLoading) {
     return (
@@ -84,6 +87,7 @@ export default function BookingConfirmationPage() {
   const statusCfg = STATUS_CONFIG[booking.status] ?? STATUS_CONFIG["pending_approval"];
   const isPersonal = booking.bookingType === "personal";
   const displayPrice = booking.agreedPrice != null ? booking.agreedPrice : booking.totalPrice;
+  const isRenterConfirmed = renterConfirmedLocal !== null ? renterConfirmedLocal : booking.renterConfirmed;
   const gcalUrl = buildGoogleCalendarUrl(
     booking.startDate,
     booking.endDate,
@@ -203,6 +207,47 @@ export default function BookingConfirmationPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Renter confirmation action */}
+        {booking.status === "confirmed" && !isRenterConfirmed && (
+          <div className="rounded-xl border border-green-200 bg-green-50/60 p-5 flex flex-col items-center gap-4 text-center">
+            <CheckCircle2 className="w-8 h-8 text-green-500" />
+            <div>
+              <p className="font-semibold text-foreground">Confirm Your Booking</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Please confirm that you received your booking confirmation and agree to the details above.
+              </p>
+            </div>
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={() => renterConfirmMutation.mutate(
+                { data: { token: token! } },
+                { onSuccess: () => setRenterConfirmedLocal(true) }
+              )}
+              disabled={renterConfirmMutation.isPending}
+            >
+              {renterConfirmMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+              )}
+              Confirm My Booking
+            </Button>
+            {renterConfirmMutation.isError && (
+              <p className="text-xs text-red-500">Something went wrong. Please try again or contact the owner.</p>
+            )}
+          </div>
+        )}
+
+        {booking.status === "confirmed" && isRenterConfirmed && (
+          <div className="rounded-xl border border-green-200 bg-green-50/60 p-4 flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
+            <div>
+              <p className="font-semibold text-green-700 text-sm">Booking Confirmed</p>
+              <p className="text-xs text-muted-foreground">You have confirmed receipt of this booking. See you at the cottage!</p>
+            </div>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-3">

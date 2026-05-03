@@ -22,4 +22,5 @@ export interface RentalEntry {
   extraDetails: string;
   status: string;
   confirmationToken?: string | null;
+  renterConfirmed: boolean;
 }
