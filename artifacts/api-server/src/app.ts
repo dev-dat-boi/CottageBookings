@@ -43,11 +43,20 @@ if (frontendDist) {
 
 app.use("/api", router);
 
-// Catch-all: return index.html for any non-API route so React Router works.
-// Must come AFTER the /api router.
 if (frontendDist) {
-  app.use((_req, res) => {
-    res.sendFile(path.join(frontendDist, "index.html"));
+  const fd = frontendDist;
+  // Single catch-all after all API routes:
+  //   /api/*  → JSON 404 (never falls through to the SPA)
+  //   GET /*  → index.html (React Router handles client-side navigation)
+  //   other   → 404 (Express default)
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      res.status(404).json({ error: "Not found" });
+    } else if (req.method === "GET") {
+      res.sendFile(path.join(fd, "index.html"));
+    } else {
+      next();
+    }
   });
 }
 
