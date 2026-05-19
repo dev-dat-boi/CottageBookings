@@ -25,6 +25,7 @@ const TEMPLATE_LABELS: Record<string, string> = {
   renter_submitted: "Booking Approved (Renter)",
   renter_confirmed: "Booking Confirmed (Renter)",
   owner_confirmed: "Booking Confirmed (Owners)",
+  renter_cancelled: "Booking Cancelled (Renter)",
 };
 
 interface TemplateEditorProps {

@@ -47,7 +47,7 @@ async function getTemplateMap(): Promise<Record<string, typeof emailTemplatesTab
 
 async function sendStatusEmails(
   rental: typeof rentalsTable.$inferSelect,
-  newStatus: "pending_approval" | "submitted" | "confirmed",
+  newStatus: "pending_approval" | "submitted" | "confirmed" | "cancelled",
 ): Promise<void> {
   try {
     const ical = buildIcalDataUrl({ ...rental, agreedPrice: rental.agreedPrice ?? null });
@@ -91,6 +91,15 @@ async function sendStatusEmails(
         const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars, ical);
         sendEmail({ to: ownerEmails, subject, html, templateType: "owner_confirmed", rentalId: rental.id }).catch(err =>
           logger.error({ err, rentalId: rental.id, template: "owner_confirmed" }, "Failed to send owner_confirmed email"),
+        );
+      }
+    } else if (newStatus === "cancelled") {
+      if (rental.email) {
+        const def = EMAIL_TEMPLATE_DEFAULTS.renter_cancelled;
+        const tmpl = tmplMap["renter_cancelled"] ?? def;
+        const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars);
+        sendEmail({ to: [rental.email], subject, html, templateType: "renter_cancelled", rentalId: rental.id }).catch(err =>
+          logger.error({ err, rentalId: rental.id, template: "renter_cancelled" }, "Failed to send renter_cancelled email"),
         );
       }
     }
@@ -342,8 +351,8 @@ router.patch("/rentals/:id", async (req, res) => {
     const statusChanged = status != null && newStatus !== previousStatus;
 
     try {
-      if (statusChanged && (newStatus === "submitted" || newStatus === "confirmed")) {
-        await sendStatusEmails(rental, newStatus as "submitted" | "confirmed");
+      if (statusChanged && (newStatus === "submitted" || newStatus === "confirmed" || newStatus === "cancelled")) {
+        await sendStatusEmails(rental, newStatus as "submitted" | "confirmed" | "cancelled");
       }
 
       // Skip manual resend for recipients that already received an automatic email

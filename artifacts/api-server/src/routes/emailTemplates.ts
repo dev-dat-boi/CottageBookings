@@ -98,6 +98,25 @@ const DEFAULTS: Record<string, { name: string; subject: string; body: string; va
     ].join('\n'),
     variables: ["[Name]", "[Phone]", "[Email]", "[StartDate]", "[EndDate]", "[Nights]", "[Total]", "[AgreedPrice]", "[RateType]", "[ExtraDetails]"],
   },
+  renter_cancelled: {
+    name: "Renter: Booking Cancelled",
+    subject: "Your Cottage Booking Has Been Cancelled — [StartDate] to [EndDate]",
+    body: [
+      "Hi [Name],",
+      "",
+      "We're sorry to let you know that your cottage rental booking for [StartDate] to [EndDate] has been cancelled.",
+      "",
+      "Dates: [StartDate] to [EndDate] ([Nights] nights)",
+      "Rate: [RateType]",
+      "",
+      "If you believe this is an error or would like to make a new booking, please get in touch.",
+      "",
+      "We apologize for any inconvenience.",
+      "",
+      "Warm regards",
+    ].join('\n'),
+    variables: ["[Name]", "[StartDate]", "[EndDate]", "[Nights]", "[Total]", "[RateType]", "[ExtraDetails]"],
+  },
 };
 
 async function ensureDefaults() {
