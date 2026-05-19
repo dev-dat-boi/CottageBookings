@@ -47,3 +47,12 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Database dumps & backups
+*.sql
+*.sqlite
+*.db
+
+# Data exports
+*.xlsx
+*.csv
