@@ -720,6 +720,28 @@ paths:
                 items:
                   $ref: "#/components/schemas/EmailTemplate"
 
+  /email-logs:
+    get:
+      operationId: getEmailLogs
+      tags: [email-templates]
+      summary: Get email delivery audit log (admin only)
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Max entries to return (default 200)
+      responses:
+        "200":
+          description: List of email log entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmailLogEntry"
+
   /email-templates/{type}:
     get:
       operationId: getEmailTemplate
@@ -1337,6 +1359,29 @@ components:
         updatedAt:
           type: string
       required: [type, name, subject, body, variables, updatedAt]
+
+    EmailLogEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        sentAt:
+          type: string
+        recipients:
+          type: string
+        templateType:
+          type: string
+        rentalId:
+          type: integer
+          nullable: true
+        subject:
+          type: string
+        success:
+          type: boolean
+        errorMessage:
+          type: string
+          nullable: true
+      required: [id, sentAt, recipients, templateType, subject, success]
 
     EmailTemplatePatch:
       type: object

@@ -298,6 +298,17 @@ export interface EmailTemplate {
   updatedAt: string;
 }
 
+export interface EmailLogEntry {
+  id: number;
+  sentAt: string;
+  recipients: string;
+  templateType: string;
+  rentalId?: number | null;
+  subject: string;
+  success: boolean;
+  errorMessage?: string | null;
+}
+
 export interface EmailTemplatePatch {
   subject?: string | null;
   body?: string | null;
@@ -343,5 +354,12 @@ limit?: number;
 
 export type ClearHistory200 = {
   deleted: number;
+};
+
+export type GetEmailLogsParams = {
+/**
+ * Max entries to return (default 200)
+ */
+limit?: number;
 };
 

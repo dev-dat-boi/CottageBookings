@@ -5,6 +5,8 @@ export interface EmailOptions {
   to: string[];
   subject: string;
   html: string;
+  templateType?: string;
+  rentalId?: number | null;
 }
 
 function createTransport() {
@@ -20,17 +22,46 @@ function createTransport() {
   };
 }
 
+async function writeEmailLog(opts: {
+  recipients: string;
+  templateType: string;
+  rentalId?: number | null;
+  subject: string;
+  success: boolean;
+  errorMessage?: string | null;
+}): Promise<void> {
+  try {
+    const { db, emailLogTable } = await import("@workspace/db");
+    await db.insert(emailLogTable).values({
+      recipients: opts.recipients,
+      templateType: opts.templateType,
+      rentalId: opts.rentalId ?? null,
+      subject: opts.subject,
+      success: opts.success,
+      errorMessage: opts.errorMessage ?? null,
+    });
+  } catch (err) {
+    logger.warn({ err }, "Failed to write email log entry");
+  }
+}
+
 export async function sendEmail(opts: EmailOptions): Promise<boolean> {
   const config = createTransport();
+  const templateType = opts.templateType ?? "";
+  const recipients = opts.to.join(", ");
   if (!config) {
     logger.warn("Email not configured — skipping (set SMTP_HOST, SMTP_USER, SMTP_PASS env vars)");
+    await writeEmailLog({ recipients, templateType, rentalId: opts.rentalId, subject: opts.subject, success: false, errorMessage: "Email not configured (SMTP credentials missing)" });
     return false;
   }
   try {
-    await config.transport.sendMail({ from: config.from, to: opts.to.join(", "), subject: opts.subject, html: opts.html });
+    await config.transport.sendMail({ from: config.from, to: recipients, subject: opts.subject, html: opts.html });
+    await writeEmailLog({ recipients, templateType, rentalId: opts.rentalId, subject: opts.subject, success: true });
     return true;
   } catch (err) {
     logger.error({ err }, "Failed to send email");
+    const message = err instanceof Error ? err.message : String(err);
+    await writeEmailLog({ recipients, templateType, rentalId: opts.rentalId, subject: opts.subject, success: false, errorMessage: message });
     return false;
   }
 }

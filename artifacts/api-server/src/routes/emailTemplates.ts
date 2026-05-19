@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { db, emailTemplatesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, emailTemplatesTable, emailLogTable } from "@workspace/db";
+import { eq, desc } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 
 const router = Router();
@@ -170,6 +170,32 @@ router.patch("/email-templates/:type", requireAuth, async (req, res) => {
     res.json(rowToApi(rows[0]));
   } catch (err) {
     req.log.error({ err }, "Failed to update email template");
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.get("/email-logs", requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const parsedLimit = parseInt(String(req.query.limit ?? "200"), 10);
+  const limit = Math.min(Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 200, 500);
+  try {
+    const rows = await db
+      .select()
+      .from(emailLogTable)
+      .orderBy(desc(emailLogTable.sentAt))
+      .limit(limit);
+    res.json(rows.map(r => ({
+      id: r.id,
+      sentAt: r.sentAt.toISOString(),
+      recipients: r.recipients,
+      templateType: r.templateType,
+      rentalId: r.rentalId ?? null,
+      subject: r.subject,
+      success: r.success,
+      errorMessage: r.errorMessage ?? null,
+    })));
+  } catch (err) {
+    req.log.error({ err }, "Failed to get email logs");
     res.status(500).json({ error: "Server error" });
   }
 });

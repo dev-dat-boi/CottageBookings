@@ -102,6 +102,17 @@ export const emailTemplatesTable = pgTable("email_templates", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const emailLogTable = pgTable("email_log", {
+  id: serial("id").primaryKey(),
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+  recipients: text("recipients").notNull(),
+  templateType: text("template_type").notNull().default(''),
+  rentalId: integer("rental_id"),
+  subject: text("subject").notNull().default(''),
+  success: boolean("success").notNull().default(true),
+  errorMessage: text("error_message"),
+});
+
 export const insertSettingsSchema = createInsertSchema(settingsTable);
 export const insertDayOverrideSchema = createInsertSchema(dayOverridesTable);
 export const insertChangeHistorySchema = createInsertSchema(changeHistoryTable).omit({ id: true, createdAt: true });
@@ -123,3 +134,4 @@ export type CottageInfo = typeof cottageInfoTable.$inferSelect;
 export type OwnerApproval = typeof ownerApprovalsTable.$inferSelect;
 export type BookingConfirmationRow = typeof bookingConfirmationsTable.$inferSelect;
 export type EmailTemplate = typeof emailTemplatesTable.$inferSelect;
+export type EmailLog = typeof emailLogTable.$inferSelect;

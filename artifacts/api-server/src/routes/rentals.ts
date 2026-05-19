@@ -61,7 +61,7 @@ async function sendStatusEmails(
         const def = EMAIL_TEMPLATE_DEFAULTS.owner_new_booking;
         const tmpl = tmplMap["owner_new_booking"] ?? def;
         const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars, ical);
-        sendEmail({ to: ownerEmails, subject, html }).catch(err =>
+        sendEmail({ to: ownerEmails, subject, html, templateType: "owner_new_booking", rentalId: rental.id }).catch(err =>
           logger.error({ err, rentalId: rental.id, template: "owner_new_booking" }, "Failed to send owner_new_booking email"),
         );
       }
@@ -70,7 +70,7 @@ async function sendStatusEmails(
         const def = EMAIL_TEMPLATE_DEFAULTS.renter_submitted;
         const tmpl = tmplMap["renter_submitted"] ?? def;
         const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars, ical);
-        sendEmail({ to: [rental.email], subject, html }).catch(err =>
+        sendEmail({ to: [rental.email], subject, html, templateType: "renter_submitted", rentalId: rental.id }).catch(err =>
           logger.error({ err, rentalId: rental.id, template: "renter_submitted" }, "Failed to send renter_submitted email"),
         );
       }
@@ -81,7 +81,7 @@ async function sendStatusEmails(
         const def = EMAIL_TEMPLATE_DEFAULTS.renter_confirmed;
         const tmpl = tmplMap["renter_confirmed"] ?? def;
         const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, { ...vars, ConfirmLink: confirmUrl }, ical);
-        sendEmail({ to: [rental.email], subject, html }).catch(err =>
+        sendEmail({ to: [rental.email], subject, html, templateType: "renter_confirmed", rentalId: rental.id }).catch(err =>
           logger.error({ err, rentalId: rental.id, template: "renter_confirmed" }, "Failed to send renter_confirmed email"),
         );
       }
@@ -89,7 +89,7 @@ async function sendStatusEmails(
         const def = EMAIL_TEMPLATE_DEFAULTS.owner_confirmed;
         const tmpl = tmplMap["owner_confirmed"] ?? def;
         const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars, ical);
-        sendEmail({ to: ownerEmails, subject, html }).catch(err =>
+        sendEmail({ to: ownerEmails, subject, html, templateType: "owner_confirmed", rentalId: rental.id }).catch(err =>
           logger.error({ err, rentalId: rental.id, template: "owner_confirmed" }, "Failed to send owner_confirmed email"),
         );
       }
@@ -366,7 +366,7 @@ router.patch("/rentals/:id", async (req, res) => {
             const def = EMAIL_TEMPLATE_DEFAULTS.owner_confirmed;
             const tmpl = tmplMap["owner_confirmed"] ?? def;
             const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars, ical);
-            sendEmail({ to: ownerEmails, subject, html }).catch(err =>
+            sendEmail({ to: ownerEmails, subject, html, templateType: "owner_confirmed", rentalId: rental.id }).catch(err =>
               req.log.error({ err, rentalId: rental.id }, "Failed to send manual owner email"),
             );
           }
@@ -376,7 +376,7 @@ router.patch("/rentals/:id", async (req, res) => {
           const tmpl = tmplMap["renter_confirmed"] ?? def;
           const confirmUrl = `${getBaseUrl()}/booking/${rental.confirmationToken}`;
           const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, { ...vars, ConfirmLink: confirmUrl }, ical);
-          sendEmail({ to: [rental.email], subject, html }).catch(err =>
+          sendEmail({ to: [rental.email], subject, html, templateType: "renter_confirmed", rentalId: rental.id }).catch(err =>
             req.log.error({ err, rentalId: rental.id }, "Failed to send manual renter email"),
           );
         }

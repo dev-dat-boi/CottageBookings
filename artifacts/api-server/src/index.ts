@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedAdminUser } from "./lib/seed";
+import { runStartupMigrations } from "./lib/migrate";
 
 const rawPort = process.env["PORT"];
 
@@ -24,6 +25,8 @@ app.listen(port, async (err) => {
 
   logger.info({ port }, "Server listening");
 
+  // Ensure schema additions are applied (idempotent, IF NOT EXISTS guards)
+  await runStartupMigrations();
   // Ensure the default admin user always exists (safe on every startup)
   await seedAdminUser();
 });

@@ -8,6 +8,13 @@
       "when": 1779157469036,
       "tag": "0000_powerful_sersi",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779159266671,
+      "tag": "0001_add_email_log",
+      "breakpoints": true
     }
   ]
 }

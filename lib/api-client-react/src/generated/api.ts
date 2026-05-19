@@ -36,11 +36,13 @@ import type {
   DayOverrideRequest,
   DeleteRental200,
   DeleteUser200,
+  EmailLogEntry,
   EmailTemplate,
   EmailTemplatePatch,
   ForgotPassword200,
   ForgotPasswordRequest,
   GetCalendarParams,
+  GetEmailLogsParams,
   GetHistoryParams,
   HealthStatus,
   LoginBody,
@@ -2705,6 +2707,90 @@ export function useGetEmailTemplates<TData = Awaited<ReturnType<typeof getEmailT
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetEmailTemplatesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetEmailLogsUrl = (params?: GetEmailLogsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/email-logs?${stringifiedParams}` : `/api/email-logs`
+}
+
+/**
+ * @summary Get email delivery audit log (admin only)
+ */
+export const getEmailLogs = async (params?: GetEmailLogsParams, options?: RequestInit): Promise<EmailLogEntry[]> => {
+
+  return customFetch<EmailLogEntry[]>(getGetEmailLogsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEmailLogsQueryKey = (params?: GetEmailLogsParams,) => {
+    return [
+    `/api/email-logs`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetEmailLogsQueryOptions = <TData = Awaited<ReturnType<typeof getEmailLogs>>, TError = ErrorType<unknown>>(params?: GetEmailLogsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmailLogs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEmailLogsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmailLogs>>> = ({ signal }) => getEmailLogs(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEmailLogs>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetEmailLogsQueryResult = NonNullable<Awaited<ReturnType<typeof getEmailLogs>>>
+export type GetEmailLogsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get email delivery audit log (admin only)
+ */
+
+export function useGetEmailLogs<TData = Awaited<ReturnType<typeof getEmailLogs>>, TError = ErrorType<unknown>>(
+ params?: GetEmailLogsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getEmailLogs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetEmailLogsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

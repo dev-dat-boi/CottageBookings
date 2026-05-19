@@ -757,6 +757,26 @@ export const GetEmailTemplatesResponse = zod.array(GetEmailTemplatesResponseItem
 
 
 /**
+ * @summary Get email delivery audit log (admin only)
+ */
+export const GetEmailLogsQueryParams = zod.object({
+  "limit": zod.coerce.number().optional().describe('Max entries to return (default 200)')
+})
+
+export const GetEmailLogsResponseItem = zod.object({
+  "id": zod.number(),
+  "sentAt": zod.string(),
+  "recipients": zod.string(),
+  "templateType": zod.string(),
+  "rentalId": zod.number().nullish(),
+  "subject": zod.string(),
+  "success": zod.boolean(),
+  "errorMessage": zod.string().nullish()
+})
+export const GetEmailLogsResponse = zod.array(GetEmailLogsResponseItem)
+
+
+/**
  * @summary Get a single email template by type (admin only)
  */
 export const GetEmailTemplateParams = zod.object({

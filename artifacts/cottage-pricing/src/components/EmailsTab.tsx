@@ -6,16 +6,26 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Save, Mail, Clock, AlertCircle, CheckCircle2, Loader2, Copy, Check } from "lucide-react";
+import { Save, Mail, Clock, AlertCircle, CheckCircle2, Loader2, Copy, Check, XCircle, RefreshCw } from "lucide-react";
 import {
   useGetEmailTemplates,
   useUpdateEmailTemplate,
   getGetEmailTemplatesQueryKey,
+  useGetEmailLogs,
+  getGetEmailLogsQueryKey,
   type EmailTemplate,
+  type EmailLogEntry,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 const TEMPLATE_ORDER = ["renter_confirmed", "owner_confirmed"];
+
+const TEMPLATE_LABELS: Record<string, string> = {
+  owner_new_booking: "New Booking (Owners)",
+  renter_submitted: "Booking Approved (Renter)",
+  renter_confirmed: "Booking Confirmed (Renter)",
+  owner_confirmed: "Booking Confirmed (Owners)",
+};
 
 interface TemplateEditorProps {
   template: EmailTemplate;
@@ -178,6 +188,114 @@ function TemplateEditor({ template }: TemplateEditorProps) {
   );
 }
 
+function formatDateTime(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" });
+}
+
+function EmailLogSection() {
+  const queryClient = useQueryClient();
+  const { data: logs, isLoading, isError, isFetching } = useGetEmailLogs(
+    { limit: 200 },
+    { query: { queryKey: getGetEmailLogsQueryKey({ limit: 200 }) } },
+  );
+
+  function handleRefresh() {
+    queryClient.invalidateQueries({ queryKey: getGetEmailLogsQueryKey({ limit: 200 }) });
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="text-center space-y-2">
+          <AlertCircle className="w-8 h-8 text-destructive mx-auto" />
+          <p className="text-sm text-muted-foreground">Failed to load email log</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {logs?.length === 0
+            ? "No emails have been sent yet."
+            : `Showing last ${logs?.length} email attempts, newest first.`}
+        </p>
+        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isFetching}>
+          <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isFetching ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
+      </div>
+
+      {logs && logs.length > 0 && (
+        <div className="rounded-lg border border-border/40 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted/50 border-b border-border/40">
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">Status</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">Sent At</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">Template</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">Rental</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground">Recipients</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground">Subject</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/30">
+                {logs.map((entry: EmailLogEntry) => (
+                  <tr key={entry.id} className="hover:bg-muted/20 transition-colors">
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      {entry.success ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5 font-medium">
+                          <CheckCircle2 className="w-3 h-3" /> Sent
+                        </span>
+                      ) : (
+                        <span
+                          className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-1.5 py-0.5 font-medium cursor-help"
+                          title={entry.errorMessage ?? "Unknown error"}
+                        >
+                          <XCircle className="w-3 h-3" /> Failed
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+                      {formatDateTime(entry.sentAt)}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <Badge variant="outline" className="text-xs font-normal">
+                        {TEMPLATE_LABELS[entry.templateType] ?? (entry.templateType || "—")}
+                      </Badge>
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
+                      {entry.rentalId != null ? `#${entry.rentalId}` : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[180px] truncate" title={entry.recipients}>
+                      {entry.recipients}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-muted-foreground max-w-[220px] truncate" title={entry.subject}>
+                      {entry.subject}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function EmailsTab() {
   const { data: templates, isLoading, isError } = useGetEmailTemplates();
 
@@ -243,6 +361,26 @@ export function EmailsTab() {
               </TabsContent>
             ))}
           </Tabs>
+        </CardContent>
+      </Card>
+
+      <Card className="border border-border/40">
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Clock className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Email Delivery Log</CardTitle>
+              <CardDescription className="text-sm">
+                A record of every email attempt — who received it, which template was used, and whether it succeeded.
+                Hover over a failed row's status badge to see the error.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <EmailLogSection />
         </CardContent>
       </Card>
     </div>
