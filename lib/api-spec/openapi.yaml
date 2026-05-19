@@ -421,6 +421,25 @@ paths:
               schema:
                 $ref: "#/components/schemas/RentalEntry"
 
+  /auth/site-password:
+    post:
+      operationId: checkSitePassword
+      tags: [auth]
+      summary: Check the site access password (no auth required)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SitePasswordBody"
+      responses:
+        "200":
+          description: Password check result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SitePasswordResult"
+
   /auth/login:
     post:
       operationId: authLogin
@@ -838,7 +857,24 @@ components:
         familyRateCode:
           type: string
           description: "Secret code required to access the family rate (empty means no code required)"
+        sitePassword:
+          type: string
+          description: "Password required to access the site"
       required: [basePrice, familyRate, seasons, dayMultipliers, holidays]
+
+    SitePasswordBody:
+      type: object
+      properties:
+        password:
+          type: string
+      required: [password]
+
+    SitePasswordResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+      required: [ok]
 
     DayOverrideRequest:
       type: object

@@ -18,6 +18,7 @@ export const settingsTable = pgTable("settings", {
   holidaysByYearJson: text("holidays_by_year_json").notNull().default('{}'),
   ownersJson: text("owners_json").notNull().default('[]'),
   familyRateCode: text("family_rate_code").notNull().default(''),
+  sitePassword: text("site_password").notNull().default('cottage2025'),
 });
 
 export const dayOverridesTable = pgTable("day_overrides", {

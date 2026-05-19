@@ -49,6 +49,23 @@ async function removeOwnerFromSettings(email: string) {
   }
 }
 
+router.post("/auth/site-password", async (req, res) => {
+  const { password } = req.body;
+  if (!password) {
+    res.status(400).json({ ok: false });
+    return;
+  }
+  try {
+    const rows = await db.select().from(settingsTable).where(eq(settingsTable.id, 1));
+    const row = rows[0];
+    const sitePassword = (row as any)?.sitePassword ?? "cottage2025";
+    res.json({ ok: password === sitePassword });
+  } catch (err) {
+    req.log.error({ err }, "Site password check failed");
+    res.status(500).json({ ok: false });
+  }
+});
+
 router.post("/auth/login", async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {

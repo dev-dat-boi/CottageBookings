@@ -4,6 +4,7 @@ import { db, settingsTable, changeHistoryTable, usersTable } from "@workspace/db
 import { eq } from "drizzle-orm";
 import { UpdateSettingsBody } from "@workspace/api-zod";
 import { DEFAULT_SEASONS, DEFAULT_HOLIDAYS, parseSeasons, parseHolidays } from "../lib/pricing";
+import { extractToken } from "../lib/auth";
 
 function parseHolidaysByYear(json: string): Record<string, ReturnType<typeof parseHolidays>> {
   try {
@@ -29,6 +30,7 @@ function rowToApi(row: typeof settingsTable.$inferSelect) {
     basePrice: row.basePrice,
     familyRate: row.familyRate,
     familyRateCode: (row as any).familyRateCode ?? "",
+    sitePassword: (row as any).sitePassword ?? "cottage2025",
     seasons,
     dayMultipliers: {
       Monday: row.dayMonday,
@@ -121,6 +123,12 @@ function buildSettingsDiff(old: typeof settingsTable.$inferSelect, body: any): s
     }
   }
 
+  const oldSitePassword = (old as any).sitePassword ?? "cottage2025";
+  const newSitePassword = body.sitePassword;
+  if (newSitePassword !== undefined && newSitePassword !== oldSitePassword) {
+    diffs.push(`Site password changed`);
+  }
+
   if (diffs.length === 0) return "Settings saved (no changes)";
   return `Settings changed: ${diffs.join("; ")}`;
 }
@@ -164,7 +172,14 @@ async function syncOwnersToUsers(oldOwners: { name: string; email: string }[], n
 router.get("/settings", async (req, res) => {
   try {
     const rows = await ensureDefaultSettings();
-    res.json(rowToApi(rows[0]));
+    const data = rowToApi(rows[0]);
+    const payload = extractToken(req);
+    if (payload?.role !== "admin") {
+      const { sitePassword: _omit, ...publicData } = data;
+      res.json(publicData);
+    } else {
+      res.json(data);
+    }
   } catch (err) {
     req.log.error({ err }, "Failed to get settings");
     res.status(500).json({ error: "Failed to get settings" });
@@ -188,7 +203,7 @@ router.put("/settings", async (req, res) => {
 
     const diffDesc = buildSettingsDiff(oldRow, body);
 
-    await db.update(settingsTable).set({
+    const updatePayload: any = {
       basePrice: body.basePrice,
       familyRate: body.familyRate,
       dayMonday: body.dayMultipliers.Monday,
@@ -203,7 +218,11 @@ router.put("/settings", async (req, res) => {
       holidaysByYearJson: JSON.stringify((body as any).holidaysByYear ?? {}),
       ownersJson: JSON.stringify(newOwners),
       familyRateCode: (body as any).familyRateCode ?? "",
-    } as any).where(eq(settingsTable.id, 1));
+    };
+    if ((body as any).sitePassword !== undefined) {
+      updatePayload.sitePassword = (body as any).sitePassword;
+    }
+    await db.update(settingsTable).set(updatePayload).where(eq(settingsTable.id, 1));
 
     const createdPasswords = await syncOwnersToUsers(oldOwners, newOwners);
 

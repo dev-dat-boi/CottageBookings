@@ -8,6 +8,7 @@ import BookingConfirmationPage from "@/pages/BookingConfirmationPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import { AdminLockProvider } from "@/contexts/AdminLockContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SitePasswordGate } from "@/components/SitePasswordGate";
 
 const queryClient = new QueryClient();
 
@@ -25,16 +26,18 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AuthProvider>
-          <AdminLockProvider>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <Router />
-            </WouterRouter>
-            <Toaster />
-          </AdminLockProvider>
-        </AuthProvider>
-      </TooltipProvider>
+      <SitePasswordGate>
+        <TooltipProvider>
+          <AuthProvider>
+            <AdminLockProvider>
+              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                <Router />
+              </WouterRouter>
+              <Toaster />
+            </AdminLockProvider>
+          </AuthProvider>
+        </TooltipProvider>
+      </SitePasswordGate>
     </QueryClientProvider>
   );
 }

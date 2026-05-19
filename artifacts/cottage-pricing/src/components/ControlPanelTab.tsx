@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, Save, Plus, Trash2, CalendarDays, Lock } from "lucide-react";
+import { Loader2, Save, Plus, Trash2, CalendarDays, Lock, KeyRound } from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/contexts/AuthContext";
@@ -297,6 +297,86 @@ function ModBanner() {
   );
 }
 
+// ─── Site Access Password Section ─────────────────────────────────────────────
+function SitePasswordSection({ currentPassword }: { currentPassword: string }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: settings } = useGetSettings({ query: { queryKey: getGetSettingsQueryKey() } });
+  const updateMutation = useUpdateSettings();
+  const [newPassword, setNewPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  function handleSave() {
+    if (!newPassword.trim()) return;
+    setSaving(true);
+    updateMutation.mutate({
+      data: {
+        basePrice: settings?.basePrice ?? 300,
+        familyRate: settings?.familyRate ?? 200,
+        familyRateCode: settings?.familyRateCode ?? "",
+        seasons: settings?.seasons ?? [],
+        dayMultipliers: settings?.dayMultipliers ?? { Monday: 0.95, Tuesday: 0.95, Wednesday: 0.95, Thursday: 0.95, Friday: 1.1, Saturday: 1.25, Sunday: 1.05 },
+        holidays: settings?.holidays ?? [],
+        holidaysByYear: settings?.holidaysByYear ?? {},
+        owners: settings?.owners ?? [],
+        sitePassword: newPassword.trim(),
+      },
+    }, {
+      onSuccess: () => {
+        toast({ title: "Password updated", description: "The site access password has been changed." });
+        queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+        setNewPassword("");
+        setSaving(false);
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to update the password.", variant: "destructive" });
+        setSaving(false);
+      },
+    });
+  }
+
+  return (
+    <Card className="border-border/40 shadow-sm">
+      <CardHeader className="bg-muted/30 border-b border-border/40">
+        <CardTitle className="flex items-center gap-2">
+          <KeyRound className="w-4 h-4" /> Site Access Password
+        </CardTitle>
+        <CardDescription className="text-xs mt-0.5">
+          All visitors must enter this password to view the site.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-4 sm:p-6 space-y-4">
+        <div className="space-y-1">
+          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Current password</p>
+          <p className="font-mono text-sm bg-muted/40 border border-border/30 rounded-md px-3 py-2 select-all">{currentPassword}</p>
+        </div>
+        <div className="flex gap-2 items-end">
+          <div className="flex-1 space-y-1.5">
+            <label className="text-sm font-medium text-foreground">New password</label>
+            <Input
+              type="text"
+              placeholder="Enter new password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSave()}
+              className="font-mono"
+            />
+          </div>
+          <Button
+            type="button"
+            onClick={handleSave}
+            disabled={!newPassword.trim() || saving}
+            className="shrink-0"
+          >
+            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+            Save
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export function ControlPanelTab() {
   const { toast } = useToast();
@@ -352,8 +432,10 @@ export function ControlPanelTab() {
   if (isLoading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-primary w-8 h-8" /></div>;
 
   const defaultHolidays: Holiday[] = form.watch("holidays") ?? [];
+  const currentSitePassword: string = settings?.sitePassword ?? "cottage2025";
 
   return (
+    <div className="space-y-8">
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
 
@@ -459,5 +541,9 @@ export function ControlPanelTab() {
         </div>
       </form>
     </Form>
+
+    {/* Site Access Password — admin only */}
+    {isAdmin && <SitePasswordSection currentPassword={currentSitePassword} />}
+    </div>
   );
 }
