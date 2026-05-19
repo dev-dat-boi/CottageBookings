@@ -26,6 +26,42 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
 
+## Schema Change Workflow
+
+Every time you add, rename, or remove a column or table in `lib/db/src/schema/`, you **must** generate a migration before deploying. Skipping this step will cause the server to crash on startup because the database won't match what the code expects.
+
+### Step-by-step
+
+1. **Edit the schema** — make your changes in `lib/db/src/schema/settings.ts` (or a new file added to `lib/db/src/schema/index.ts`).
+2. **Generate the migration SQL** — run:
+   ```
+   pnpm --filter @workspace/db run generate
+   ```
+   This creates a new numbered `.sql` file under `lib/db/migrations/` and updates the Drizzle journal at `lib/db/migrations/meta/_journal.json`.
+3. **Review the generated SQL** — open the new `.sql` file and confirm the `ALTER TABLE` / `CREATE TABLE` statements look correct before committing.
+4. **Commit both files** — commit the changed schema file(s) *and* the new migration SQL together so they are always in sync.
+5. **Deploy** — the production start command (`railway.toml`) automatically runs `pnpm --filter @workspace/db run migrate` before starting the server, so the migration is applied on every deploy.
+
+### Check for un-migrated changes
+
+Run the following to detect schema files that are newer than the latest migration:
+
+```
+pnpm --filter @workspace/scripts run check-migrations
+```
+
+This prints a warning if any file under `lib/db/src/schema/` has been modified after the most recent migration was generated.
+
+### Dev shortcut (Replit environment only)
+
+During local development you can skip the generate/migrate cycle and push schema changes directly to the dev database:
+
+```
+pnpm --filter @workspace/db run push
+```
+
+Do **not** use `push` against a production database — always use `generate` + `migrate` for production deployments.
+
 ## Application: Cottage Pricing Manager
 
 ### Feature Overview
