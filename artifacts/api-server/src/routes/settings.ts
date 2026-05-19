@@ -31,6 +31,10 @@ function rowToApi(row: typeof settingsTable.$inferSelect) {
     familyRate: row.familyRate,
     familyRateCode: (row as any).familyRateCode ?? "",
     sitePassword: (row as any).sitePassword ?? "cottage2025",
+    // Return undefined (omitted from JSON) when unset, matching the optional string type
+    googleCalendarId: (row as any).googleCalendarId ?? undefined,
+    // Non-sensitive hint: lets the UI show the env-var value as a placeholder
+    googleCalendarIdEnvHint: process.env.GOOGLE_CALENDAR_ID ?? undefined,
     seasons,
     dayMultipliers: {
       Monday: row.dayMonday,
@@ -221,6 +225,11 @@ router.put("/settings", async (req, res) => {
     };
     if ((body as any).sitePassword !== undefined) {
       updatePayload.sitePassword = (body as any).sitePassword;
+    }
+    if ((body as any).googleCalendarId !== undefined) {
+      const gcid = (body as any).googleCalendarId;
+      // Treat empty string as null (cleared) for storage
+      updatePayload.googleCalendarId = typeof gcid === "string" && gcid.trim() !== "" ? gcid.trim() : null;
     }
     await db.update(settingsTable).set(updatePayload).where(eq(settingsTable.id, 1));
 

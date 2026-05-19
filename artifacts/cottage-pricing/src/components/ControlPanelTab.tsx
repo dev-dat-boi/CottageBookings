@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, Save, Plus, Trash2, CalendarDays, Lock, KeyRound } from "lucide-react";
+import { Loader2, Save, Plus, Trash2, CalendarDays, Lock, KeyRound, Calendar, ChevronDown, ChevronUp } from "lucide-react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/contexts/AuthContext";
@@ -377,6 +377,114 @@ function SitePasswordSection({ currentPassword }: { currentPassword: string }) {
   );
 }
 
+// ─── Google Calendar Section ──────────────────────────────────────────────────
+function GoogleCalendarSection({ currentCalendarId, envHint }: { currentCalendarId?: string; envHint?: string }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: settings } = useGetSettings({ query: { queryKey: getGetSettingsQueryKey() } });
+  const updateMutation = useUpdateSettings();
+  const [calendarId, setCalendarId] = useState(currentCalendarId ?? "");
+  const [saving, setSaving] = useState(false);
+  const [showSetup, setShowSetup] = useState(false);
+
+  useEffect(() => {
+    setCalendarId(currentCalendarId ?? "");
+  }, [currentCalendarId]);
+
+  function handleSave() {
+    if (!settings) return;
+    setSaving(true);
+    updateMutation.mutate({
+      data: {
+        basePrice: settings.basePrice,
+        familyRate: settings.familyRate,
+        familyRateCode: settings.familyRateCode ?? "",
+        seasons: settings.seasons,
+        dayMultipliers: settings.dayMultipliers,
+        holidays: settings.holidays,
+        holidaysByYear: settings.holidaysByYear,
+        owners: settings.owners,
+        googleCalendarId: calendarId.trim(),
+      },
+    }, {
+      onSuccess: () => {
+        toast({ title: "Calendar ID saved", description: "Confirmed bookings will now sync to this calendar." });
+        queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+        setSaving(false);
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to save the calendar ID.", variant: "destructive" });
+        setSaving(false);
+      },
+    });
+  }
+
+  return (
+    <Card className="border-border/40 shadow-sm">
+      <CardHeader className="bg-muted/30 border-b border-border/40">
+        <CardTitle className="flex items-center gap-2">
+          <Calendar className="w-4 h-4" /> Google Calendar Sync
+        </CardTitle>
+        <CardDescription className="text-xs mt-0.5">
+          When a booking is confirmed, it will automatically appear in the specified Google Calendar.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-4 sm:p-6 space-y-4">
+        <div className="flex gap-2 items-end">
+          <div className="flex-1 space-y-1.5">
+            <label className="text-sm font-medium text-foreground">Google Calendar ID</label>
+            <Input
+              type="text"
+              placeholder={envHint ? envHint : "e.g. abc123xyz@group.calendar.google.com"}
+              value={calendarId}
+              onChange={(e) => setCalendarId(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSave()}
+              className="font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              Found in Google Calendar settings under "Integrate calendar". Leave blank to use the <code className="bg-muted px-1 rounded text-xs">GOOGLE_CALENDAR_ID</code> environment variable.
+            </p>
+          </div>
+          <Button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="shrink-0"
+          >
+            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+            Save
+          </Button>
+        </div>
+
+        <div className="border border-border/30 rounded-lg overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowSetup(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
+          >
+            <span>How to set up Google Calendar auto-sync</span>
+            {showSetup ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          {showSetup && (
+            <div className="px-4 pb-4 pt-1 space-y-2 text-xs text-muted-foreground bg-muted/10 border-t border-border/30">
+              <p className="font-semibold text-foreground">Setup steps:</p>
+              <ol className="list-decimal list-inside space-y-1.5 leading-relaxed">
+                <li>Go to <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">Google Cloud Console</a> and create or select a project.</li>
+                <li>Enable the <strong>Google Calendar API</strong> for the project.</li>
+                <li>Under <strong>IAM &amp; Admin → Service Accounts</strong>, create a new service account.</li>
+                <li>Create a JSON key for the service account and download it.</li>
+                <li>Add the service account's email address as an editor to your Google Calendar (Calendar Settings → Share with specific people).</li>
+                <li>Set the <code className="bg-muted px-1 rounded">GOOGLE_SERVICE_ACCOUNT_JSON</code> environment variable to the full content of the downloaded JSON key file.</li>
+                <li>Set the <code className="bg-muted px-1 rounded">GOOGLE_CALENDAR_ID</code> environment variable (or paste the Calendar ID above).</li>
+              </ol>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export function ControlPanelTab() {
   const { toast } = useToast();
@@ -544,6 +652,9 @@ export function ControlPanelTab() {
 
     {/* Site Access Password — admin only */}
     {isAdmin && <SitePasswordSection currentPassword={currentSitePassword} />}
+
+    {/* Google Calendar Sync — admin only */}
+    {isAdmin && <GoogleCalendarSection currentCalendarId={settings?.googleCalendarId} envHint={settings?.googleCalendarIdEnvHint} />}
     </div>
   );
 }

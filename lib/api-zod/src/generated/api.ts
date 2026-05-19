@@ -54,7 +54,9 @@ export const GetSettingsResponse = zod.object({
   "email": zod.string()
 })).optional(),
   "familyRateCode": zod.string().optional().describe('Secret code required to access the family rate (empty means no code required)'),
-  "sitePassword": zod.string().optional().describe('Password required to access the site')
+  "sitePassword": zod.string().optional().describe('Password required to access the site'),
+  "googleCalendarId": zod.string().optional().describe('Google Calendar ID to sync confirmed bookings to (overrides GOOGLE_CALENDAR_ID env var)'),
+  "googleCalendarIdEnvHint": zod.string().optional().describe('Read-only: the GOOGLE_CALENDAR_ID env var value, shown as a placeholder hint in the UI')
 })
 
 
@@ -96,7 +98,9 @@ export const UpdateSettingsBody = zod.object({
   "email": zod.string()
 })).optional(),
   "familyRateCode": zod.string().optional().describe('Secret code required to access the family rate (empty means no code required)'),
-  "sitePassword": zod.string().optional().describe('Password required to access the site')
+  "sitePassword": zod.string().optional().describe('Password required to access the site'),
+  "googleCalendarId": zod.string().optional().describe('Google Calendar ID to sync confirmed bookings to (overrides GOOGLE_CALENDAR_ID env var)'),
+  "googleCalendarIdEnvHint": zod.string().optional().describe('Read-only: the GOOGLE_CALENDAR_ID env var value, shown as a placeholder hint in the UI')
 })
 
 export const UpdateSettingsResponse = zod.object({
@@ -134,7 +138,9 @@ export const UpdateSettingsResponse = zod.object({
   "email": zod.string()
 })).optional(),
   "familyRateCode": zod.string().optional().describe('Secret code required to access the family rate (empty means no code required)'),
-  "sitePassword": zod.string().optional().describe('Password required to access the site')
+  "sitePassword": zod.string().optional().describe('Password required to access the site'),
+  "googleCalendarId": zod.string().optional().describe('Google Calendar ID to sync confirmed bookings to (overrides GOOGLE_CALENDAR_ID env var)'),
+  "googleCalendarIdEnvHint": zod.string().optional().describe('Read-only: the GOOGLE_CALENDAR_ID env var value, shown as a placeholder hint in the UI')
 })
 
 

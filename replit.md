@@ -112,3 +112,35 @@ If SMTP vars are not set, email sending is skipped silently (a warning is logged
 | Admin sets status → `confirmed`      | Guest + all owners | `renter_confirmed` / `owner_confirmed` |
 
 Templates are editable by admins via the Email Templates section of the Control Panel.
+
+### Google Calendar Auto-Sync
+
+Confirmed bookings are automatically pushed to a Google Calendar. Configure these environment variables:
+
+| Variable                     | Required | Description                                                             |
+|------------------------------|----------|-------------------------------------------------------------------------|
+| `GOOGLE_SERVICE_ACCOUNT_JSON`| Yes      | Full JSON content of a Google service account key file                  |
+| `GOOGLE_CALENDAR_ID`         | Yes*     | Target calendar ID (e.g. `abc@group.calendar.google.com`)               |
+
+*`GOOGLE_CALENDAR_ID` can alternatively be set via the "Google Calendar Sync" section in the Control Panel (Settings tab), which takes precedence over the env var.
+
+If neither `GOOGLE_SERVICE_ACCOUNT_JSON` nor a calendar ID is configured, the auto-sync is silently skipped. The manual "Add to Google Calendar" button in the Rentals tab remains available as a fallback.
+
+#### Setup steps
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) and create or select a project.
+2. Enable the **Google Calendar API** for the project.
+3. Under **IAM & Admin → Service Accounts**, create a new service account.
+4. Create a JSON key for the service account and download it.
+5. In Google Calendar settings, share your calendar with the service account's email as an **Editor**.
+6. Set `GOOGLE_SERVICE_ACCOUNT_JSON` to the full contents of the downloaded JSON key file.
+7. Set `GOOGLE_CALENDAR_ID` to your calendar's ID (found under Calendar Settings → Integrate calendar).
+
+#### Calendar event lifecycle
+
+| Event                              | Calendar action            |
+|------------------------------------|----------------------------|
+| Rental status → `confirmed`        | Create or update event     |
+| Confirmed rental details changed   | Update existing event      |
+| Status changed away from confirmed | Delete event + clear ID    |
+| Rental deleted                     | Delete event + clear ID    |

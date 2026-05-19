@@ -24,4 +24,8 @@ export interface Settings {
   familyRateCode?: string;
   /** Password required to access the site */
   sitePassword?: string;
+  /** Google Calendar ID to sync confirmed bookings to (overrides GOOGLE_CALENDAR_ID env var) */
+  googleCalendarId?: string;
+  /** Read-only: the GOOGLE_CALENDAR_ID env var value, shown as a placeholder hint in the UI */
+  googleCalendarIdEnvHint?: string;
 }

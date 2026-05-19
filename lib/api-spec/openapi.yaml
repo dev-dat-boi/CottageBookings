@@ -882,6 +882,12 @@ components:
         sitePassword:
           type: string
           description: "Password required to access the site"
+        googleCalendarId:
+          type: string
+          description: "Google Calendar ID to sync confirmed bookings to (overrides GOOGLE_CALENDAR_ID env var)"
+        googleCalendarIdEnvHint:
+          type: string
+          description: "Read-only: the GOOGLE_CALENDAR_ID env var value, shown as a placeholder hint in the UI"
       required: [basePrice, familyRate, seasons, dayMultipliers, holidays]
 
     SitePasswordBody:

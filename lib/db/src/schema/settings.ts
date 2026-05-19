@@ -19,6 +19,7 @@ export const settingsTable = pgTable("settings", {
   ownersJson: text("owners_json").notNull().default('[]'),
   familyRateCode: text("family_rate_code").notNull().default(''),
   sitePassword: text("site_password").notNull().default('cottage2025'),
+  googleCalendarId: text("google_calendar_id"),
 });
 
 export const dayOverridesTable = pgTable("day_overrides", {
@@ -53,6 +54,7 @@ export const rentalsTable = pgTable("rentals", {
   status: text("status").notNull().default('pending_approval'),
   confirmationToken: text("confirmation_token").unique(),
   renterConfirmed: boolean("renter_confirmed").notNull().default(false),
+  googleCalendarEventId: text("google_calendar_event_id"),
 });
 
 export const ownerApprovalsTable = pgTable("owner_approvals", {

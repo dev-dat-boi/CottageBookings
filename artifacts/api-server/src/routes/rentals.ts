@@ -8,6 +8,7 @@ import { EMAIL_TEMPLATE_DEFAULTS } from "./emailTemplates";
 import { ensureDefaultSettings } from "./settings";
 import { extractToken, requireAuth } from "../lib/auth";
 import { logger } from "../lib/logger";
+import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from "../lib/googleCalendar";
 
 const router = Router();
 
@@ -18,6 +19,52 @@ function parseOwners(json: string): { name: string; email: string }[] {
 async function getOwners(): Promise<{ name: string; email: string }[]> {
   const rows = await ensureDefaultSettings();
   return parseOwners((rows[0] as any).ownersJson ?? "[]");
+}
+
+async function getEffectiveCalendarId(): Promise<string | null> {
+  try {
+    const rows = await db.select().from(settingsTable).where(eq(settingsTable.id, 1));
+    const dbCalendarId = rows[0] ? (rows[0] as any).googleCalendarId : null;
+    return dbCalendarId || process.env.GOOGLE_CALENDAR_ID || null;
+  } catch {
+    return process.env.GOOGLE_CALENDAR_ID || null;
+  }
+}
+
+async function syncConfirmedRentalToCalendar(rental: typeof rentalsTable.$inferSelect): Promise<void> {
+  try {
+    const calendarId = await getEffectiveCalendarId();
+    const existingEventId = rental.googleCalendarEventId;
+    if (existingEventId) {
+      await updateCalendarEvent(existingEventId, rental, calendarId);
+    } else {
+      const eventId = await createCalendarEvent(rental, calendarId);
+      if (eventId) {
+        await db.update(rentalsTable)
+          .set({ googleCalendarEventId: eventId })
+          .where(eq(rentalsTable.id, rental.id));
+      }
+    }
+  } catch (err) {
+    logger.error({ err, rentalId: rental.id }, "Google Calendar sync failed (non-fatal)");
+  }
+}
+
+async function removeRentalFromCalendar(rental: typeof rentalsTable.$inferSelect): Promise<void> {
+  const eventId = rental.googleCalendarEventId;
+  if (!eventId) return;
+  try {
+    const calendarId = await getEffectiveCalendarId();
+    const deleted = await deleteCalendarEvent(eventId, calendarId);
+    if (deleted) {
+      // Only clear the stored event ID on confirmed deletion so a retry is possible on failure
+      await db.update(rentalsTable)
+        .set({ googleCalendarEventId: null })
+        .where(eq(rentalsTable.id, rental.id));
+    }
+  } catch (err) {
+    logger.error({ err, rentalId: rental.id }, "Google Calendar delete failed (non-fatal)");
+  }
 }
 
 function buildVars(row: typeof rentalsTable.$inferSelect): Record<string, string> {
@@ -350,6 +397,18 @@ router.patch("/rentals/:id", async (req, res) => {
     const newStatus = rental.status;
     const statusChanged = status != null && newStatus !== previousStatus;
 
+    // Google Calendar sync — exactly one action per request, fire-and-forget
+    if (statusChanged && newStatus === "confirmed") {
+      // Newly confirmed — create (or update if event already exists)
+      syncConfirmedRentalToCalendar(rental).catch(() => {});
+    } else if (statusChanged && previousStatus === "confirmed") {
+      // Moved away from confirmed (cancelled, etc.) — remove from calendar
+      removeRentalFromCalendar(rental).catch(() => {});
+    } else if (!statusChanged && newStatus === "confirmed" && Object.keys(updates).length > 0) {
+      // Already confirmed, details changed — update the event
+      syncConfirmedRentalToCalendar(rental).catch(() => {});
+    }
+
     try {
       if (statusChanged && (newStatus === "submitted" || newStatus === "confirmed" || newStatus === "cancelled")) {
         await sendStatusEmails(rental, newStatus as "submitted" | "confirmed" | "cancelled");
@@ -403,10 +462,14 @@ router.delete("/rentals/:id", async (req, res) => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
+    const rentalRows = await db.select().from(rentalsTable).where(eq(rentalsTable.id, id));
     await db.delete(bookingConfirmationsTable).where(eq(bookingConfirmationsTable.rentalId, id));
     await db.delete(ownerApprovalsTable).where(eq(ownerApprovalsTable.rentalId, id));
     await db.delete(rentalsTable).where(eq(rentalsTable.id, id));
     res.json({ deleted: 1 });
+    if (rentalRows.length > 0) {
+      removeRentalFromCalendar(rentalRows[0]).catch(() => {});
+    }
   } catch (err) {
     req.log.error({ err }, "Failed to delete rental");
     res.status(500).json({ error: "Failed to delete rental" });
@@ -521,6 +584,7 @@ router.patch("/rentals/:id/confirmations/:userId", requireAuth, async (req, res)
             .returning();
           if (updatedRentals.length > 0) {
             await sendStatusEmails(updatedRentals[0], "confirmed");
+            syncConfirmedRentalToCalendar(updatedRentals[0]).catch(() => {});
           }
         }
       }
