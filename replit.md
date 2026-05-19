@@ -87,3 +87,28 @@ A full rental pricing + booking management web app for a cottage.
 
 - `AuthContext` — JWT auth state, login/logout, isAdmin flag
 - `AdminLockContext` — legacy (kept for compatibility, no longer controls access)
+
+### Email / SMTP Setup
+
+Automatic booking emails are sent via Nodemailer. Configure these environment variables (e.g. in Railway dashboard under Variables):
+
+| Variable    | Required | Description                                      |
+|-------------|----------|--------------------------------------------------|
+| `SMTP_HOST` | Yes      | SMTP server hostname (e.g. `smtp.gmail.com`)     |
+| `SMTP_PORT` | No       | SMTP port — defaults to `587` (TLS/STARTTLS)     |
+| `SMTP_USER` | Yes      | SMTP username / email address                    |
+| `SMTP_PASS` | Yes      | SMTP password or app-specific password           |
+| `SMTP_FROM` | No       | Sender address — defaults to `SMTP_USER`         |
+
+If SMTP vars are not set, email sending is skipped silently (a warning is logged).
+
+#### Email triggers
+
+| Event                                | Recipients         | Template              |
+|--------------------------------------|--------------------|-----------------------|
+| New booking created (owners exist)   | All owners         | `owner_new_booking`   |
+| New booking created (no owners)      | Guest              | `renter_submitted`    |
+| All owners approve → `submitted`     | Guest              | `renter_submitted`    |
+| Admin sets status → `confirmed`      | Guest + all owners | `renter_confirmed` / `owner_confirmed` |
+
+Templates are editable by admins via the Email Templates section of the Control Panel.

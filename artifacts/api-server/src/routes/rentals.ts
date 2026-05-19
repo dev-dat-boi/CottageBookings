@@ -3,10 +3,11 @@ import { randomUUID } from "crypto";
 import { db, rentalsTable, settingsTable, ownerApprovalsTable, bookingConfirmationsTable, usersTable, emailTemplatesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { CreateRentalBody, UpdateRentalBody } from "@workspace/api-zod";
-import { sendEmail, buildIcalDataUrl, buildRentalEmailHtml, buildEmailFromTemplate } from "../lib/email";
+import { sendEmail, buildIcalDataUrl, buildEmailFromTemplate } from "../lib/email";
 import { EMAIL_TEMPLATE_DEFAULTS } from "./emailTemplates";
 import { ensureDefaultSettings } from "./settings";
 import { extractToken, requireAuth } from "../lib/auth";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -17,6 +18,85 @@ function parseOwners(json: string): { name: string; email: string }[] {
 async function getOwners(): Promise<{ name: string; email: string }[]> {
   const rows = await ensureDefaultSettings();
   return parseOwners((rows[0] as any).ownersJson ?? "[]");
+}
+
+function buildVars(row: typeof rentalsTable.$inferSelect): Record<string, string> {
+  return {
+    Name: row.renterName,
+    Phone: row.phone ?? "",
+    Email: row.email ?? "",
+    StartDate: row.startDate,
+    EndDate: row.endDate,
+    Nights: String(row.nights),
+    Total: (row.agreedPrice ?? row.totalPrice).toFixed(2),
+    AgreedPrice: row.agreedPrice != null ? row.agreedPrice.toFixed(2) : (row.totalPrice ?? 0).toFixed(2),
+    RateType: row.rateType === "family" ? "Family Rate" : "Standard Rate",
+    ExtraDetails: row.extraDetails ?? "",
+  };
+}
+
+function getBaseUrl(): string {
+  const domains = process.env.REPLIT_DOMAINS?.split(",") ?? [];
+  return domains[0] ? `https://${domains[0]}` : "http://localhost:80";
+}
+
+async function getTemplateMap(): Promise<Record<string, typeof emailTemplatesTable.$inferSelect>> {
+  const rows = await db.select().from(emailTemplatesTable);
+  return Object.fromEntries(rows.map(t => [t.type, t]));
+}
+
+async function sendStatusEmails(
+  rental: typeof rentalsTable.$inferSelect,
+  newStatus: "pending_approval" | "submitted" | "confirmed",
+): Promise<void> {
+  try {
+    const ical = buildIcalDataUrl({ ...rental, agreedPrice: rental.agreedPrice ?? null });
+    const tmplMap = await getTemplateMap();
+    const vars = buildVars(rental);
+    const owners = await getOwners();
+    const ownerEmails = owners.map(o => o.email).filter(Boolean);
+
+    if (newStatus === "pending_approval") {
+      if (ownerEmails.length > 0) {
+        const def = EMAIL_TEMPLATE_DEFAULTS.owner_new_booking;
+        const tmpl = tmplMap["owner_new_booking"] ?? def;
+        const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars, ical);
+        sendEmail({ to: ownerEmails, subject, html }).catch(err =>
+          logger.error({ err, rentalId: rental.id, template: "owner_new_booking" }, "Failed to send owner_new_booking email"),
+        );
+      }
+    } else if (newStatus === "submitted") {
+      if (rental.email) {
+        const def = EMAIL_TEMPLATE_DEFAULTS.renter_submitted;
+        const tmpl = tmplMap["renter_submitted"] ?? def;
+        const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars, ical);
+        sendEmail({ to: [rental.email], subject, html }).catch(err =>
+          logger.error({ err, rentalId: rental.id, template: "renter_submitted" }, "Failed to send renter_submitted email"),
+        );
+      }
+    } else if (newStatus === "confirmed") {
+      const baseUrl = getBaseUrl();
+      const confirmUrl = `${baseUrl}/booking/${rental.confirmationToken}`;
+      if (rental.email) {
+        const def = EMAIL_TEMPLATE_DEFAULTS.renter_confirmed;
+        const tmpl = tmplMap["renter_confirmed"] ?? def;
+        const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, { ...vars, ConfirmLink: confirmUrl }, ical);
+        sendEmail({ to: [rental.email], subject, html }).catch(err =>
+          logger.error({ err, rentalId: rental.id, template: "renter_confirmed" }, "Failed to send renter_confirmed email"),
+        );
+      }
+      if (ownerEmails.length > 0) {
+        const def = EMAIL_TEMPLATE_DEFAULTS.owner_confirmed;
+        const tmpl = tmplMap["owner_confirmed"] ?? def;
+        const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars, ical);
+        sendEmail({ to: ownerEmails, subject, html }).catch(err =>
+          logger.error({ err, rentalId: rental.id, template: "owner_confirmed" }, "Failed to send owner_confirmed email"),
+        );
+      }
+    }
+  } catch (err) {
+    logger.error({ err, rentalId: rental.id, newStatus }, "sendStatusEmails: unexpected error preparing email");
+  }
 }
 
 function rowToApi(row: typeof rentalsTable.$inferSelect) {
@@ -93,19 +173,8 @@ async function checkAndAutoConfirm(rentalId: number) {
     .where(and(eq(rentalsTable.id, rentalId), eq(rentalsTable.status, "pending_approval")))
     .returning();
   if (rentals.length === 0) return;
-  const rental = rentals[0];
 
-  const ownerEmails = approvals.map(a => a.ownerEmail).filter(Boolean);
-  if (ownerEmails.length > 0) {
-    const ical = buildIcalDataUrl({ ...rental, agreedPrice: rental.agreedPrice ?? null });
-    const html = buildRentalEmailHtml({ ...rowToApi(rental), agreedPrice: rental.agreedPrice ?? null }, ical, false);
-    sendEmail({ to: ownerEmails, subject: `Rental Approved - ${rental.renterName}`, html }).catch(() => {});
-  }
-  if (rental.email) {
-    const ical = buildIcalDataUrl({ ...rental, agreedPrice: rental.agreedPrice ?? null });
-    const html = buildRentalEmailHtml({ ...rowToApi(rental), agreedPrice: rental.agreedPrice ?? null }, ical, true);
-    sendEmail({ to: [rental.email], subject: `Your Cottage Rental is Confirmed — ${rental.startDate} to ${rental.endDate}`, html }).catch(() => {});
-  }
+  await sendStatusEmails(rentals[0], "submitted");
 }
 
 router.get("/rentals", async (req, res) => {
@@ -159,6 +228,8 @@ router.post("/rentals", async (req, res) => {
     await seedConfirmationsForRental(rental.id);
 
     res.status(201).json(rowToApi(rental));
+
+    await sendStatusEmails(rental, initialStatus as "pending_approval" | "submitted");
   } catch (err) {
     req.log.error({ err }, "Failed to create rental");
     res.status(500).json({ error: "Failed to create rental" });
@@ -251,57 +322,68 @@ router.patch("/rentals/:id", async (req, res) => {
     if (agreedPrice !== undefined) updates.agreedPrice = agreedPrice ?? undefined;
     if (renterConfirmed != null) updates.renterConfirmed = renterConfirmed;
 
+    const previousRows = await db.select().from(rentalsTable).where(eq(rentalsTable.id, id));
+    if (previousRows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
+    const previousStatus = previousRows[0].status;
+
     let updatedRows;
     if (Object.keys(updates).length > 0) {
       updatedRows = await db.update(rentalsTable).set(updates).where(eq(rentalsTable.id, id)).returning();
     } else {
-      updatedRows = await db.select().from(rentalsTable).where(eq(rentalsTable.id, id));
+      updatedRows = previousRows;
     }
     if (updatedRows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
     const rental = updatedRows[0];
     const apiRental = rowToApi(rental);
 
-    if (sendOwnerEmail || sendRenterEmail) {
-      const ical = buildIcalDataUrl(rental);
-      const tmplRows = await db.select().from(emailTemplatesTable);
-      const tmplMap = Object.fromEntries(tmplRows.map(t => [t.type, t]));
+    res.json(apiRental);
 
-      const buildVars = (r: typeof rental) => ({
-        Name: r.renterName,
-        Phone: r.phone ?? "",
-        Email: r.email ?? "",
-        StartDate: r.startDate,
-        EndDate: r.endDate,
-        Nights: String(r.nights),
-        Total: (r.agreedPrice ?? r.totalPrice).toFixed(2),
-        AgreedPrice: r.agreedPrice != null ? r.agreedPrice.toFixed(2) : (r.totalPrice ?? 0).toFixed(2),
-        RateType: r.rateType === "family" ? "Family Rate" : "Standard Rate",
-        ExtraDetails: r.extraDetails ?? "",
-      });
+    const newStatus = rental.status;
+    const statusChanged = status != null && newStatus !== previousStatus;
 
-      if (sendOwnerEmail) {
-        const owners = await getOwners();
-        const ownerEmails = owners.map(o => o.email).filter(Boolean);
-        if (ownerEmails.length > 0) {
-          const def = EMAIL_TEMPLATE_DEFAULTS.owner_confirmed;
-          const tmpl = tmplMap["owner_confirmed"] ?? def;
-          const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, buildVars(rental), ical);
-          sendEmail({ to: ownerEmails, subject, html }).catch(() => {});
+    try {
+      if (statusChanged && (newStatus === "submitted" || newStatus === "confirmed")) {
+        await sendStatusEmails(rental, newStatus as "submitted" | "confirmed");
+      }
+
+      // Skip manual resend for recipients that already received an automatic email
+      // from the status transition above to avoid duplicates.
+      const autoSentToRenter = statusChanged && (newStatus === "submitted" || newStatus === "confirmed");
+      const autoSentToOwners = statusChanged && newStatus === "confirmed";
+
+      const needsManualOwner = sendOwnerEmail && !autoSentToOwners;
+      const needsManualRenter = sendRenterEmail && !autoSentToRenter;
+
+      if (needsManualOwner || needsManualRenter) {
+        const ical = buildIcalDataUrl(rental);
+        const tmplMap = await getTemplateMap();
+        const vars = buildVars(rental);
+
+        if (needsManualOwner) {
+          const owners = await getOwners();
+          const ownerEmails = owners.map(o => o.email).filter(Boolean);
+          if (ownerEmails.length > 0) {
+            const def = EMAIL_TEMPLATE_DEFAULTS.owner_confirmed;
+            const tmpl = tmplMap["owner_confirmed"] ?? def;
+            const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars, ical);
+            sendEmail({ to: ownerEmails, subject, html }).catch(err =>
+              req.log.error({ err, rentalId: rental.id }, "Failed to send manual owner email"),
+            );
+          }
+        }
+        if (needsManualRenter && rental.email) {
+          const def = EMAIL_TEMPLATE_DEFAULTS.renter_confirmed;
+          const tmpl = tmplMap["renter_confirmed"] ?? def;
+          const confirmUrl = `${getBaseUrl()}/booking/${rental.confirmationToken}`;
+          const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, { ...vars, ConfirmLink: confirmUrl }, ical);
+          sendEmail({ to: [rental.email], subject, html }).catch(err =>
+            req.log.error({ err, rentalId: rental.id }, "Failed to send manual renter email"),
+          );
         }
       }
-      if (sendRenterEmail && rental.email) {
-        const def = EMAIL_TEMPLATE_DEFAULTS.renter_confirmed;
-        const tmpl = tmplMap["renter_confirmed"] ?? def;
-        const domains = process.env.REPLIT_DOMAINS?.split(",") ?? [];
-        const baseDomain = domains[0];
-        const baseUrl = baseDomain ? `https://${baseDomain}` : `http://localhost:80`;
-        const confirmUrl = `${baseUrl}/booking/${rental.confirmationToken}`;
-        const vars = { ...buildVars(rental), ConfirmLink: confirmUrl };
-        const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars, ical);
-        sendEmail({ to: [rental.email], subject, html }).catch(() => {});
-      }
+    } catch (emailErr) {
+      req.log.error({ err: emailErr }, "Failed to send post-update emails");
     }
-    res.json(apiRental);
   } catch (err) {
     req.log.error({ err }, "Failed to update rental");
     res.status(500).json({ error: "Failed to update rental" });
@@ -429,41 +511,7 @@ router.patch("/rentals/:id/confirmations/:userId", requireAuth, async (req, res)
             .where(eq(rentalsTable.id, rentalId))
             .returning();
           if (updatedRentals.length > 0) {
-            const r = updatedRentals[0];
-            const ical = buildIcalDataUrl({ ...r, agreedPrice: r.agreedPrice ?? null });
-            const tmplRows = await db.select().from(emailTemplatesTable);
-            const tmplMap = Object.fromEntries(tmplRows.map(t => [t.type, t]));
-            const buildVars = (row: typeof r) => ({
-              Name: row.renterName,
-              Phone: row.phone ?? "",
-              Email: row.email ?? "",
-              StartDate: row.startDate,
-              EndDate: row.endDate,
-              Nights: String(row.nights),
-              Total: (row.agreedPrice ?? row.totalPrice).toFixed(2),
-              AgreedPrice: row.agreedPrice != null ? row.agreedPrice.toFixed(2) : (row.totalPrice ?? 0).toFixed(2),
-              RateType: row.rateType === "family" ? "Family Rate" : "Standard Rate",
-              ExtraDetails: row.extraDetails ?? "",
-            });
-            if (r.email) {
-              const domains = process.env.REPLIT_DOMAINS?.split(",") ?? [];
-              const baseDomain = domains[0];
-              const baseUrl = baseDomain ? `https://${baseDomain}` : `http://localhost:80`;
-              const confirmUrl = `${baseUrl}/booking/${r.confirmationToken}`;
-              const def = EMAIL_TEMPLATE_DEFAULTS.renter_confirmed;
-              const tmpl = tmplMap["renter_confirmed"] ?? def;
-              const vars = { ...buildVars(r), ConfirmLink: confirmUrl };
-              const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars, ical);
-              sendEmail({ to: [r.email], subject, html }).catch(() => {});
-            }
-            const owners = await getOwners();
-            const ownerEmails = owners.map(o => o.email).filter(Boolean);
-            if (ownerEmails.length > 0) {
-              const def = EMAIL_TEMPLATE_DEFAULTS.owner_confirmed;
-              const tmpl = tmplMap["owner_confirmed"] ?? def;
-              const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, buildVars(r), ical);
-              sendEmail({ to: ownerEmails, subject, html }).catch(() => {});
-            }
+            await sendStatusEmails(updatedRentals[0], "confirmed");
           }
         }
       }

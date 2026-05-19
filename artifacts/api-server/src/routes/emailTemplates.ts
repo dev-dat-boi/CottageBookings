@@ -21,6 +21,45 @@ function parseTemplatePatch(body: unknown): { subject?: string | null; body?: st
 }
 
 const DEFAULTS: Record<string, { name: string; subject: string; body: string; variables: string[] }> = {
+  owner_new_booking: {
+    name: "Owners: New Booking Request",
+    subject: "New Booking Request — [Name] ([StartDate] to [EndDate])",
+    body: [
+      "A new booking request has been submitted and requires your approval.",
+      "",
+      "Guest: [Name]",
+      "Phone: [Phone]",
+      "Email: [Email]",
+      "Dates: [StartDate] to [EndDate] ([Nights] nights)",
+      "Estimated Total: $[Total]",
+      "Rate: [RateType]",
+      "",
+      "Notes: [ExtraDetails]",
+      "",
+      "Please log in to approve or decline this booking.",
+    ].join('\n'),
+    variables: ["[Name]", "[Phone]", "[Email]", "[StartDate]", "[EndDate]", "[Nights]", "[Total]", "[RateType]", "[ExtraDetails]"],
+  },
+  renter_submitted: {
+    name: "Renter: Booking Approved, Awaiting Confirmation",
+    subject: "Your Cottage Booking Has Been Approved — [StartDate] to [EndDate]",
+    body: [
+      "Hi [Name],",
+      "",
+      "Great news! Your cottage rental request for [StartDate] to [EndDate] has been approved.",
+      "",
+      "Your booking is now awaiting final confirmation. We will be in touch shortly.",
+      "",
+      "Dates: [StartDate] to [EndDate] ([Nights] nights)",
+      "Total: $[Total]",
+      "Rate: [RateType]",
+      "",
+      "If you have any questions, feel free to reach out.",
+      "",
+      "Warm regards",
+    ].join('\n'),
+    variables: ["[Name]", "[StartDate]", "[EndDate]", "[Nights]", "[Total]", "[RateType]", "[ExtraDetails]"],
+  },
   renter_confirmed: {
     name: "Renter: Booking Confirmed",
     subject: "Your Cottage Rental is Confirmed — [StartDate] to [EndDate]",
