@@ -31,7 +31,7 @@ async function getEffectiveCalendarId(): Promise<string | null> {
   }
 }
 
-async function syncConfirmedRentalToCalendar(rental: typeof rentalsTable.$inferSelect): Promise<void> {
+async function syncRentalToCalendar(rental: typeof rentalsTable.$inferSelect): Promise<void> {
   try {
     const calendarId = await getEffectiveCalendarId();
     const existingEventId = rental.googleCalendarEventId;
@@ -286,6 +286,7 @@ router.post("/rentals", async (req, res) => {
 
     res.status(201).json(rowToApi(rental));
 
+    syncRentalToCalendar(rental).catch(() => {});
     await sendStatusEmails(rental, initialStatus as "pending_approval" | "submitted");
   } catch (err) {
     req.log.error({ err }, "Failed to create rental");
@@ -398,16 +399,9 @@ router.patch("/rentals/:id", async (req, res) => {
     const newStatus = rental.status;
     const statusChanged = status != null && newStatus !== previousStatus;
 
-    // Google Calendar sync — exactly one action per request, fire-and-forget
-    if (statusChanged && newStatus === "confirmed") {
-      // Newly confirmed — create (or update if event already exists)
-      syncConfirmedRentalToCalendar(rental).catch(() => {});
-    } else if (statusChanged && previousStatus === "confirmed") {
-      // Moved away from confirmed (cancelled, etc.) — remove from calendar
-      removeRentalFromCalendar(rental).catch(() => {});
-    } else if (!statusChanged && newStatus === "confirmed" && Object.keys(updates).length > 0) {
-      // Already confirmed, details changed — update the event
-      syncConfirmedRentalToCalendar(rental).catch(() => {});
+    // Google Calendar sync — always keep event up to date for all statuses
+    if (statusChanged || Object.keys(updates).length > 0) {
+      syncRentalToCalendar(rental).catch(() => {});
     }
 
     try {
@@ -585,7 +579,7 @@ router.patch("/rentals/:id/confirmations/:userId", requireAuth, async (req, res)
             .returning();
           if (updatedRentals.length > 0) {
             await sendStatusEmails(updatedRentals[0], "confirmed");
-            syncConfirmedRentalToCalendar(updatedRentals[0]).catch(() => {});
+            syncRentalToCalendar(updatedRentals[0]).catch(() => {});
           }
         }
       }

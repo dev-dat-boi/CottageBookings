@@ -10,6 +10,8 @@ interface CalendarEventInput {
   phone?: string | null;
   email?: string | null;
   extraDetails?: string | null;
+  bookingType?: string | null;
+  status?: string | null;
 }
 
 interface CalendarEventBody {
@@ -58,10 +60,25 @@ function resolveCalendarId(overrideCalendarId?: string | null): string | null {
   return overrideCalendarId || process.env.GOOGLE_CALENDAR_ID || null;
 }
 
+function statusLabel(status?: string | null): string {
+  switch (status) {
+    case "pending_approval": return "REQUEST";
+    case "submitted":        return "AWAITING CONFIRMATION";
+    case "confirmed":        return "CONFIRMED";
+    case "cancelled":        return "CANCELLED";
+    default:                 return (status ?? "").toUpperCase();
+  }
+}
+
+function bookingTypeLabel(bookingType?: string | null): string {
+  return bookingType === "personal" ? "Personal Use" : "Cottage Rental";
+}
+
 function buildEventBody(rental: CalendarEventInput): CalendarEventBody {
   const priceParts: string[] = [`Estimated: $${rental.totalPrice.toFixed(2)}`];
   if (rental.agreedPrice != null) priceParts.push(`Agreed: $${rental.agreedPrice.toFixed(2)}`);
   const descParts: string[] = [
+    `Status: ${statusLabel(rental.status)}`,
     `${rental.nights} nights`,
     priceParts.join(" | "),
   ];
@@ -70,7 +87,7 @@ function buildEventBody(rental: CalendarEventInput): CalendarEventBody {
   if (rental.extraDetails) descParts.push(rental.extraDetails);
 
   return {
-    summary: `Cottage Rental - ${rental.renterName}`,
+    summary: `${bookingTypeLabel(rental.bookingType)} - ${rental.renterName} - ${statusLabel(rental.status)}`,
     description: descParts.join("\n"),
     start: { date: rental.startDate },
     end: { date: rental.endDate },
