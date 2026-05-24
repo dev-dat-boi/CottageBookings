@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import { logger } from "./logger";
 
 export interface EmailOptions {
@@ -7,6 +8,13 @@ export interface EmailOptions {
   html: string;
   templateType?: string;
   rentalId?: number | null;
+}
+
+function getResend(): { client: Resend; from: string } | null {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+  if (!apiKey || !from) return null;
+  return { client: new Resend(apiKey), from };
 }
 
 function createTransport() {
@@ -46,12 +54,33 @@ async function writeEmailLog(opts: {
 }
 
 export async function sendEmail(opts: EmailOptions): Promise<boolean> {
-  const config = createTransport();
   const templateType = opts.templateType ?? "";
   const recipients = opts.to.join(", ");
+
+  const resend = getResend();
+  if (resend) {
+    try {
+      const { error } = await resend.client.emails.send({
+        from: resend.from,
+        to: opts.to,
+        subject: opts.subject,
+        html: opts.html,
+      });
+      if (error) throw new Error(error.message);
+      await writeEmailLog({ recipients, templateType, rentalId: opts.rentalId, subject: opts.subject, success: true });
+      return true;
+    } catch (err) {
+      logger.error({ err }, "Failed to send email via Resend");
+      const message = err instanceof Error ? err.message : String(err);
+      await writeEmailLog({ recipients, templateType, rentalId: opts.rentalId, subject: opts.subject, success: false, errorMessage: message });
+      return false;
+    }
+  }
+
+  const config = createTransport();
   if (!config) {
-    logger.warn("Email not configured — skipping (set SMTP_HOST, SMTP_USER, SMTP_PASS env vars)");
-    await writeEmailLog({ recipients, templateType, rentalId: opts.rentalId, subject: opts.subject, success: false, errorMessage: "Email not configured (SMTP credentials missing)" });
+    logger.warn("Email not configured — skipping (set RESEND_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASS env vars)");
+    await writeEmailLog({ recipients, templateType, rentalId: opts.rentalId, subject: opts.subject, success: false, errorMessage: "Email not configured (no RESEND_API_KEY or SMTP credentials)" });
     return false;
   }
   try {
@@ -59,7 +88,7 @@ export async function sendEmail(opts: EmailOptions): Promise<boolean> {
     await writeEmailLog({ recipients, templateType, rentalId: opts.rentalId, subject: opts.subject, success: true });
     return true;
   } catch (err) {
-    logger.error({ err }, "Failed to send email");
+    logger.error({ err }, "Failed to send email via SMTP");
     const message = err instanceof Error ? err.message : String(err);
     await writeEmailLog({ recipients, templateType, rentalId: opts.rentalId, subject: opts.subject, success: false, errorMessage: message });
     return false;
