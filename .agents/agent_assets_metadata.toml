@@ -6,3 +6,9 @@ id = "5pHVqcPJo9gSn95_82kJ4"
 uri = "file://replit-db-export.sql.gz"
 type = "unspecified"
 title = "Replit Database Export (SQL)"
+
+[[outputs]]
+id = "tR9_OhYUSDfo8OL3SbHwW"
+uri = "file://railway-import.sql.gz"
+type = "unspecified"
+title = "Railway Database Import (Clean)"
