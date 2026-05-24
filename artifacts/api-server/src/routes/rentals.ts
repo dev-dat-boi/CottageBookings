@@ -83,6 +83,7 @@ function buildVars(row: typeof rentalsTable.$inferSelect): Record<string, string
 }
 
 function getBaseUrl(): string {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
   const domains = process.env.REPLIT_DOMAINS?.split(",") ?? [];
   return domains[0] ? `https://${domains[0]}` : "http://localhost:80";
 }

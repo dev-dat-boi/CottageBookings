@@ -213,6 +213,7 @@ function generateResetToken() {
 }
 
 function buildResetLink(token: string): string {
+  if (process.env.APP_URL) return `${process.env.APP_URL.replace(/\/$/, "")}/reset-password/${token}`;
   const domain = process.env.REPLIT_DOMAINS?.split(",")[0];
   const base = domain ? `https://${domain}` : "http://localhost:80";
   return `${base}/reset-password/${token}`;
