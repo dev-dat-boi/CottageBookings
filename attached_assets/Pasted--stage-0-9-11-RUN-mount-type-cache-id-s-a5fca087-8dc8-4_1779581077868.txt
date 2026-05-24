@@ -1,0 +1,47 @@
+[stage-0  9/11] RUN --mount=type=cache,id=s/a5fca087-8dc8-401a-9044-8a7d5ac0e17f-node_modules/cache,target=/app/node_modules/.cache pnpm install --frozen-lockfile && pnpm run build
+
+Scope: all 9 workspace projects
+
+Lockfile is up to date, resolution step is skipped
+
+Already up to date
+
+
+. preinstall$ sh -c 'rm -f package-lock.json yarn.lock; case "$npm_config_user_agent" in pnpm/*) ;; *) echo "Use pnpm instead" >&2; exit 1 ;; esac'
+
+. preinstall: Done
+
+Done in 3.3s using pnpm v10.26.1
+
+
+> workspace@0.0.0 build /app
+> pnpm --filter @workspace/cottage-pricing run build && pnpm --filter @workspace/api-server run build
+
+
+
+> @workspace/cottage-pricing@0.0.0 build /app/artifacts/cottage-pricing
+> vite build --config vite.config.ts
+
+
+[33mYou are using Node.js 18.20.5. Vite requires Node.js version 20.19+ or 22.12+. Please upgrade your Node.js version.[39m
+
+[31mfailed to load config from /app/artifacts/cottage-pricing/vite.config.ts[39m
+
+[31merror during build:
+Error: Cannot find native binding. npm has a bug related to optional dependencies (https://github.com/npm/cli/issues/4828). Please try `npm i` again after removing both package-lock.json and node_modules directory.
+    at Object.<anonymous> (/app/node_modules/.pnpm/@tailwindcss+oxide@4.3.0/node_modules/@tailwindcss/oxide/index.js:563:11)
+    at Module._compile (node:internal/modules/cjs/loader:1364:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1422:10)
+    at Module.load (node:internal/modules/cjs/loader:1203:32)
+    at Module._load (node:internal/modules/cjs/loader:1019:12)
+    at ModuleWrap.<anonymous> (node:internal/modules/esm/translators:203:29)
+    at ModuleJob.run (node:internal/modules/esm/module_job:195:25)
+    at async ModuleLoader.import (node:internal/modules/esm/loader:337:24)
+    at async loadConfigFromBundledFile (file:///app/node_modules/.pnpm/vite@7.3.3_@types+node@25.7.0_jiti@2.7.0_lightningcss@1.32.0_tsx@4.21.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:35936:12)
+    at async bundleAndLoadConfigFile (file:///app/node_modules/.pnpm/vite@7.3.3_@types+node@25.7.0_jiti@2.7.0_lightningcss@1.32.0_tsx@4.21.0_yaml@2.9.0/node_modules/vite/dist/node/chunks/config.js:35824:17)[39m
+
+/app/artifacts/cottage-pricing:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/cottage-pricing@0.0.0 build: `vite build --config vite.config.ts`
+Exit status 1
+
+ ELIFECYCLE  Command failed with exit code 1.
