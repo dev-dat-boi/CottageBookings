@@ -90,7 +90,7 @@ function buildEventBody(rental: CalendarEventInput): CalendarEventBody {
     summary: `${bookingTypeLabel(rental.bookingType)} - ${rental.renterName} - ${statusLabel(rental.status)}`,
     description: descParts.join("\n"),
     start: { date: rental.startDate },
-    end: { date: rental.endDate },
+    end: { date: (() => { const d = new Date(rental.endDate + "T00:00:00"); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })() },
   };
 }
 
