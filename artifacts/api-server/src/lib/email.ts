@@ -132,34 +132,69 @@ export async function sendEmail(opts: EmailOptions): Promise<boolean> {
   }
 }
 
+const COTTAGE_ADDRESS = "40 Chem. Duncan E, Barkmere, QC J0T 2V0, Canada";
+const COTTAGE_EMAIL = "Bookings@40duncan.com";
+
+function foldIcalLine(line: string): string {
+  if (line.length <= 75) return line;
+  const parts: string[] = [];
+  parts.push(line.slice(0, 75));
+  let pos = 75;
+  while (pos < line.length) {
+    parts.push(" " + line.slice(pos, pos + 74));
+    pos += 74;
+  }
+  return parts.join("\r\n");
+}
+
 export function buildIcalContent(rental: {
-  renterName: string; startDate: string; endDate: string; extraDetails?: string;
-  totalPrice?: number; agreedPrice?: number | null;
+  renterName: string; phone?: string | null; email?: string | null;
+  startDate: string; endDate: string; nights?: number | null;
+  totalPrice?: number | null; agreedPrice?: number | null;
+  rateType?: string | null; extraDetails?: string | null;
 }): string {
-  const uid = `rental-${rental.renterName.replace(/\s+/g, "-")}-${rental.startDate}@cottage`;
+  const uid = `rental-${rental.renterName.replace(/\s+/g, "-")}-${rental.startDate}@40duncan`;
   const dtStamp = new Date().toISOString().replace(/[-:.]/g, "").slice(0, 15) + "Z";
-  const dtStart = rental.startDate.replace(/-/g, "");
-  const dtEnd = rental.endDate.replace(/-/g, "");
 
-  const priceParts: string[] = [];
-  if (rental.totalPrice != null) priceParts.push(`Estimated: $${rental.totalPrice.toFixed(2)}`);
-  if (rental.agreedPrice != null) priceParts.push(`Agreed: $${rental.agreedPrice.toFixed(2)}`);
-  const priceNote = priceParts.length > 0 ? priceParts.join(" | ") : "";
+  const [sy, sm, sd] = rental.startDate.split("-");
+  const [ey, em, ed] = rental.endDate.split("-");
+  const dtStart = `${sy}${sm}${sd}T130000`;
+  const dtEnd = `${ey}${em}${ed}T110000`;
 
-  const descParts: string[] = [];
-  if (priceNote) descParts.push(priceNote);
-  if (rental.extraDetails) descParts.push(rental.extraDetails);
-  const description = descParts.join("\\n");
+  const descLines: string[] = [];
+  descLines.push(`Cottage Rental — ${rental.renterName}`);
+  descLines.push(`Check-in: ${rental.startDate} at 13:00`);
+  descLines.push(`Check-out: ${rental.endDate} at 11:00`);
+  if (rental.nights != null) descLines.push(`Nights: ${rental.nights}`);
+  if (rental.agreedPrice != null) descLines.push(`Agreed Price: $${Number(rental.agreedPrice).toFixed(2)}`);
+  else if (rental.totalPrice != null) descLines.push(`Estimated Price: $${Number(rental.totalPrice).toFixed(2)}`);
+  if (rental.rateType) descLines.push(`Rate: ${rental.rateType === "family" ? "Family Rate" : "Standard Rate"}`);
+  if (rental.phone) descLines.push(`Phone: ${rental.phone}`);
+  if (rental.email) descLines.push(`Email: ${rental.email}`);
+  if (rental.extraDetails) descLines.push(`Notes: ${rental.extraDetails}`);
+  descLines.push(`Address: ${COTTAGE_ADDRESS}`);
+  descLines.push(`Contact: ${COTTAGE_EMAIL}`);
 
-  return [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Cottage Pricing//EN",
+  const description = descLines.join("\\n");
+
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//40 Duncan Cottage//EN",
     "BEGIN:VEVENT",
-    `UID:${uid}`, `DTSTAMP:${dtStamp}`,
-    `DTSTART;VALUE=DATE:${dtStart}`, `DTEND;VALUE=DATE:${dtEnd}`,
-    `SUMMARY:Rental - ${rental.renterName}`,
-    description ? `DESCRIPTION:${description}` : "",
-    "END:VEVENT", "END:VCALENDAR",
-  ].filter(Boolean).join("\r\n");
+    `UID:${uid}`,
+    `DTSTAMP:${dtStamp}`,
+    `DTSTART:${dtStart}`,
+    `DTEND:${dtEnd}`,
+    `SUMMARY:Cottage Rental — ${rental.renterName}`,
+    `LOCATION:${COTTAGE_ADDRESS}`,
+    `DESCRIPTION:${description}`,
+    `ORGANIZER;CN=40 Duncan:mailto:${COTTAGE_EMAIL}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ];
+
+  return lines.map(foldIcalLine).join("\r\n");
 }
 
 export function substituteEmailVars(template: string, vars: Record<string, string>): string {
