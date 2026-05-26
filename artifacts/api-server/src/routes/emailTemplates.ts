@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { db, emailTemplatesTable, emailLogTable } from "@workspace/db";
+import { db, emailTemplatesTable, emailLogTable, usersTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
+import { sendEmail, buildEmailFromTemplate } from "../lib/email";
 
 const router = Router();
 
@@ -54,6 +55,8 @@ const DEFAULTS: Record<string, { name: string; subject: string; body: string; va
       "Total: $[Total]",
       "Rate: [RateType]",
       "",
+      "Cottage Address: 40 Chem. Duncan E, Barkmere, QC J0T 2V0 Canada",
+      "",
       "If you have any questions, feel free to reach out.",
       "",
       "Warm regards",
@@ -71,6 +74,8 @@ const DEFAULTS: Record<string, { name: string; subject: string; body: string; va
       "Dates: [StartDate] to [EndDate] ([Nights] nights)",
       "Total: $[Total]",
       "Rate: [RateType]",
+      "",
+      "Cottage Address: 40 Chem. Duncan E, Barkmere, QC J0T 2V0 Canada",
       "",
       "Please confirm your booking by clicking the link below:",
       "[ConfirmLink]",
@@ -189,6 +194,49 @@ router.patch("/email-templates/:type", requireAuth, async (req, res) => {
     res.json(rowToApi(rows[0]));
   } catch (err) {
     req.log.error({ err }, "Failed to update email template");
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+const TEST_SAMPLE_VARS: Record<string, string> = {
+  Name: "John Smith",
+  Phone: "555-123-4567",
+  Email: "guest@example.com",
+  StartDate: "2025-07-01",
+  EndDate: "2025-07-07",
+  Nights: "6",
+  Total: "1250.00",
+  AgreedPrice: "1200.00",
+  RateType: "Standard Rate",
+  ExtraDetails: "Example notes for test email",
+  ConfirmLink: "https://example.com/booking/test-token",
+};
+
+router.post("/email-templates/:type/test", requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const type = String(req.params.type);
+  try {
+    await ensureDefaults();
+    const rows = await db.select().from(emailTemplatesTable).where(eq(emailTemplatesTable.type, type));
+    if (rows.length === 0) { res.status(404).json({ error: "Template not found" }); return; }
+    const template = rows[0];
+
+    const user = (req as any).user;
+    const adminRows = await db.select().from(usersTable).where(eq(usersTable.id, user.userId));
+    if (adminRows.length === 0) { res.status(404).json({ error: "Admin user not found" }); return; }
+    const adminEmail = adminRows[0].email;
+
+    const { subject, html } = buildEmailFromTemplate(template.subject, template.body, TEST_SAMPLE_VARS);
+    const ok = await sendEmail({
+      to: [adminEmail],
+      subject: `[TEST] ${subject}`,
+      html,
+      templateType: `test_${type}`,
+      isTest: true,
+    });
+    res.json({ ok, sentTo: adminEmail });
+  } catch (err) {
+    req.log.error({ err }, "Failed to send test email");
     res.status(500).json({ error: "Server error" });
   }
 });

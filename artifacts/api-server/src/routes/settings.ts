@@ -35,6 +35,7 @@ function rowToApi(row: typeof settingsTable.$inferSelect) {
     googleCalendarId: (row as any).googleCalendarId ?? undefined,
     // Non-sensitive hint: lets the UI show the env-var value as a placeholder
     googleCalendarIdEnvHint: process.env.GOOGLE_CALENDAR_ID ?? undefined,
+    emailsEnabled: (row as any).emailsEnabled ?? true,
     seasons,
     dayMultipliers: {
       Monday: row.dayMonday,
@@ -230,6 +231,9 @@ router.put("/settings", async (req, res) => {
       const gcid = (body as any).googleCalendarId;
       // Treat empty string as null (cleared) for storage
       updatePayload.googleCalendarId = typeof gcid === "string" && gcid.trim() !== "" ? gcid.trim() : null;
+    }
+    if ((body as any).emailsEnabled !== undefined) {
+      updatePayload.emailsEnabled = (body as any).emailsEnabled === true;
     }
     await db.update(settingsTable).set(updatePayload).where(eq(settingsTable.id, 1));
 

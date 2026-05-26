@@ -20,6 +20,7 @@ export const settingsTable = pgTable("settings", {
   familyRateCode: text("family_rate_code").notNull().default(''),
   sitePassword: text("site_password").notNull().default('cottage2025'),
   googleCalendarId: text("google_calendar_id"),
+  emailsEnabled: boolean("emails_enabled").notNull().default(true),
 });
 
 export const dayOverridesTable = pgTable("day_overrides", {

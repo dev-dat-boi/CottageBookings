@@ -6,17 +6,22 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Save, Mail, Clock, AlertCircle, CheckCircle2, Loader2, Copy, Check, XCircle, RefreshCw } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Save, Mail, Clock, AlertCircle, CheckCircle2, Loader2, Copy, Check, XCircle, RefreshCw, Send, ShieldAlert } from "lucide-react";
 import {
   useGetEmailTemplates,
   useUpdateEmailTemplate,
   getGetEmailTemplatesQueryKey,
   useGetEmailLogs,
   getGetEmailLogsQueryKey,
+  useGetSettings,
+  useUpdateSettings,
+  getGetSettingsQueryKey,
   type EmailTemplate,
   type EmailLogEntry,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 
 const TEMPLATE_ORDER = ["renter_confirmed", "owner_confirmed"];
 
@@ -38,6 +43,8 @@ function TemplateEditor({ template }: TemplateEditorProps) {
   const [body, setBody] = useState(template.body);
   const [saved, setSaved] = useState(false);
   const [copiedVar, setCopiedVar] = useState<string | null>(null);
+  const [testState, setTestState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [testMsg, setTestMsg] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isDirty = subject !== template.subject || body !== template.body;
 
@@ -88,6 +95,30 @@ function TemplateEditor({ template }: TemplateEditorProps) {
     setTimeout(() => setCopiedVar(null), 1500);
   }
 
+  async function handleSendTest() {
+    setTestState("sending");
+    setTestMsg("");
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`/api/email-templates/${template.type}/test`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setTestState("sent");
+        setTestMsg(`Test sent to ${data.sentTo}`);
+      } else {
+        setTestState("error");
+        setTestMsg(data.error ?? "Failed to send test");
+      }
+    } catch {
+      setTestState("error");
+      setTestMsg("Network error — could not send test");
+    }
+    setTimeout(() => setTestState("idle"), 4000);
+  }
+
   const updatedAt = new Date(template.updatedAt);
 
   return (
@@ -97,18 +128,32 @@ function TemplateEditor({ template }: TemplateEditorProps) {
           <Clock className="w-3.5 h-3.5" />
           Last saved: {updatedAt.toLocaleDateString()} {updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </div>
-        {saved && (
-          <div className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Saved successfully
-          </div>
-        )}
-        {isError && (
-          <div className="flex items-center gap-1.5 text-xs text-red-600 font-medium">
-            <AlertCircle className="w-3.5 h-3.5" />
-            Failed to save
-          </div>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {saved && (
+            <div className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Saved successfully
+            </div>
+          )}
+          {isError && (
+            <div className="flex items-center gap-1.5 text-xs text-red-600 font-medium">
+              <AlertCircle className="w-3.5 h-3.5" />
+              Failed to save
+            </div>
+          )}
+          {testState === "sent" && (
+            <div className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              {testMsg}
+            </div>
+          )}
+          {testState === "error" && (
+            <div className="flex items-center gap-1.5 text-xs text-red-600 font-medium">
+              <XCircle className="w-3.5 h-3.5" />
+              {testMsg}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -171,7 +216,7 @@ function TemplateEditor({ template }: TemplateEditorProps) {
         </div>
       )}
 
-      <div className="flex items-center gap-3 pt-1">
+      <div className="flex items-center gap-3 pt-1 flex-wrap">
         <Button onClick={handleSave} disabled={isPending || !isDirty} size="sm">
           {isPending ? (
             <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving…</>
@@ -184,6 +229,19 @@ function TemplateEditor({ template }: TemplateEditorProps) {
             Reset
           </Button>
         )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleSendTest}
+          disabled={testState === "sending"}
+          className="ml-auto"
+        >
+          {testState === "sending" ? (
+            <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Sending…</>
+          ) : (
+            <><Send className="w-3.5 h-3.5 mr-1.5" />Send Test to Me</>
+          )}
+        </Button>
       </div>
     </div>
   );
@@ -297,7 +355,57 @@ function EmailLogSection() {
   );
 }
 
+function EmailKillSwitch() {
+  const queryClient = useQueryClient();
+  const { data: settings, isLoading } = useGetSettings();
+  const { mutate: updateSettings, isPending } = useUpdateSettings({
+    mutation: {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() }),
+    },
+  });
+
+  const enabled = (settings as any)?.emailsEnabled ?? true;
+
+  function handleToggle(checked: boolean) {
+    if (!settings) return;
+    updateSettings({ data: { ...(settings as any), emailsEnabled: checked } });
+  }
+
+  if (isLoading) return null;
+
+  return (
+    <Card className={`border ${enabled ? "border-border/40" : "border-red-300 bg-red-50/40"}`}>
+      <CardContent className="pt-5 pb-5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${enabled ? "bg-green-100" : "bg-red-100"}`}>
+              <ShieldAlert className={`w-4 h-4 ${enabled ? "text-green-700" : "text-red-600"}`} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">
+                Email Sending {enabled ? "Enabled" : "Disabled (Kill Switch Active)"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {enabled
+                  ? "All booking emails are being sent normally to renters and owners."
+                  : "All outgoing emails are blocked. No emails will be sent until re-enabled."}
+              </p>
+            </div>
+          </div>
+          <Switch
+            checked={enabled}
+            onCheckedChange={handleToggle}
+            disabled={isPending}
+            className={enabled ? "" : "data-[state=unchecked]:bg-red-500"}
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function EmailsTab() {
+  const { isAdmin } = useAuth();
   const { data: templates, isLoading, isError } = useGetEmailTemplates();
 
   if (isLoading) {
@@ -328,6 +436,8 @@ export function EmailsTab() {
 
   return (
     <div className="space-y-6">
+      {isAdmin && <EmailKillSwitch />}
+
       <Card className="border border-border/40">
         <CardHeader className="pb-2">
           <div className="flex items-center gap-2">
@@ -339,6 +449,7 @@ export function EmailsTab() {
               <CardDescription className="text-sm">
                 Customize the emails sent to renters and owners when a booking is confirmed.
                 Use <code className="text-xs bg-muted px-1 py-0.5 rounded">[Variable]</code> placeholders for dynamic content.
+                {isAdmin && " Use \u201cSend Test to Me\u201d to preview any template in your inbox."}
               </CardDescription>
             </div>
           </div>

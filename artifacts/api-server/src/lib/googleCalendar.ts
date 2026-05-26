@@ -81,6 +81,7 @@ function buildEventBody(rental: CalendarEventInput): CalendarEventBody {
     `Status: ${statusLabel(rental.status)}`,
     `${rental.nights} nights`,
     priceParts.join(" | "),
+    "Address: 40 Chem. Duncan E, Barkmere, QC J0T 2V0 Canada",
   ];
   if (rental.phone) descParts.push(`Phone: ${rental.phone}`);
   if (rental.email) descParts.push(`Email: ${rental.email}`);

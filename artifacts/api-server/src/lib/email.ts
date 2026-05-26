@@ -8,6 +8,7 @@ export interface EmailOptions {
   html: string;
   templateType?: string;
   rentalId?: number | null;
+  isTest?: boolean;
 }
 
 function getResend(): { client: Resend; from: string } | null {
@@ -56,6 +57,20 @@ async function writeEmailLog(opts: {
 export async function sendEmail(opts: EmailOptions): Promise<boolean> {
   const templateType = opts.templateType ?? "";
   const recipients = opts.to.join(", ");
+
+  if (!opts.isTest) {
+    try {
+      const { db, settingsTable } = await import("@workspace/db");
+      const { eq } = await import("drizzle-orm");
+      const rows = await db.select().from(settingsTable).where(eq(settingsTable.id, 1));
+      const emailsEnabled = rows.length > 0 ? ((rows[0] as any).emailsEnabled ?? true) : true;
+      if (!emailsEnabled) {
+        logger.warn("Emails disabled via kill switch — skipping");
+        await writeEmailLog({ recipients, templateType, rentalId: opts.rentalId, subject: opts.subject, success: false, errorMessage: "Emails disabled (kill switch is off)" });
+        return false;
+      }
+    } catch { /* if settings check fails, proceed with sending */ }
+  }
 
   const resend = getResend();
   if (resend) {
