@@ -132,7 +132,7 @@ export async function sendEmail(opts: EmailOptions): Promise<boolean> {
   }
 }
 
-const COTTAGE_ADDRESS = "40 Chem. Duncan E, Barkmere, QC J0T 2V0, Canada";
+const COTTAGE_ADDRESS = "40 Chemin Duncan Est, Barkmere, QC J0T 2V0, Canada";
 const COTTAGE_EMAIL = "Bookings@40duncan.com";
 
 function foldIcalLine(line: string): string {
@@ -167,10 +167,7 @@ export function buildIcalContent(rental: {
   descLines.push(`Check-out: ${rental.endDate} at 11:00`);
   if (rental.nights != null) descLines.push(`Nights: ${rental.nights}`);
   if (rental.agreedPrice != null) descLines.push(`Agreed Price: $${Number(rental.agreedPrice).toFixed(2)}`);
-  else if (rental.totalPrice != null) descLines.push(`Estimated Price: $${Number(rental.totalPrice).toFixed(2)}`);
-  if (rental.rateType) descLines.push(`Rate: ${rental.rateType === "family" ? "Family Rate" : "Standard Rate"}`);
-  if (rental.phone) descLines.push(`Phone: ${rental.phone}`);
-  if (rental.email) descLines.push(`Email: ${rental.email}`);
+  else if (rental.totalPrice != null) descLines.push(`Estimated Total: $${Number(rental.totalPrice).toFixed(2)}`);
   if (rental.extraDetails) descLines.push(`Notes: ${rental.extraDetails}`);
   descLines.push(`Address: ${COTTAGE_ADDRESS}`);
   descLines.push(`Contact: ${COTTAGE_EMAIL}`);

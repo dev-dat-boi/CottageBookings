@@ -398,17 +398,25 @@ function EmailLogSection() {
 function EmailKillSwitch() {
   const queryClient = useQueryClient();
   const { data: settings, isLoading } = useGetSettings();
-  const { mutate: updateSettings, isPending } = useUpdateSettings({
-    mutation: {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() }),
-    },
-  });
+  const [toggling, setToggling] = useState(false);
 
   const enabled = (settings as any)?.emailsEnabled ?? true;
 
-  function handleToggle(checked: boolean) {
-    if (!settings) return;
-    updateSettings({ data: { ...(settings as any), emailsEnabled: checked } });
+  async function handleToggle(checked: boolean) {
+    setToggling(true);
+    try {
+      const token = localStorage.getItem("cottage_auth_token");
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ emailsEnabled: checked }),
+      });
+      if (res.ok) {
+        queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+      }
+    } finally {
+      setToggling(false);
+    }
   }
 
   if (isLoading) return null;
@@ -435,7 +443,7 @@ function EmailKillSwitch() {
           <Switch
             checked={enabled}
             onCheckedChange={handleToggle}
-            disabled={isPending}
+            disabled={toggling}
             className={enabled ? "" : "data-[state=unchecked]:bg-red-500"}
           />
         </div>

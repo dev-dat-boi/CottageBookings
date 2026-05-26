@@ -68,6 +68,9 @@ async function removeRentalFromCalendar(rental: typeof rentalsTable.$inferSelect
 }
 
 function buildVars(row: typeof rentalsTable.$inferSelect): Record<string, string> {
+  const priceDisplay = row.agreedPrice != null
+    ? `Agreed Price: $${row.agreedPrice.toFixed(2)}`
+    : `Estimated Total: $${(row.totalPrice ?? 0).toFixed(2)}`;
   return {
     Name: row.renterName,
     Phone: row.phone ?? "",
@@ -75,8 +78,9 @@ function buildVars(row: typeof rentalsTable.$inferSelect): Record<string, string
     StartDate: row.startDate,
     EndDate: row.endDate,
     Nights: String(row.nights),
-    Total: (row.agreedPrice ?? row.totalPrice).toFixed(2),
-    AgreedPrice: row.agreedPrice != null ? row.agreedPrice.toFixed(2) : (row.totalPrice ?? 0).toFixed(2),
+    Total: (row.totalPrice ?? 0).toFixed(2),
+    AgreedPrice: row.agreedPrice != null ? row.agreedPrice.toFixed(2) : "",
+    PriceDisplay: priceDisplay,
     RateType: row.rateType === "family" ? "Family Rate" : "Standard Rate",
     ExtraDetails: row.extraDetails ?? "",
   };
