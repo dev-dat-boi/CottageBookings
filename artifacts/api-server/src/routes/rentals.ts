@@ -98,7 +98,6 @@ async function sendStatusEmails(
   newStatus: "pending_approval" | "submitted" | "confirmed" | "cancelled",
 ): Promise<void> {
   try {
-    const ical = buildIcalDataUrl({ ...rental, agreedPrice: rental.agreedPrice ?? null });
     const tmplMap = await getTemplateMap();
     const vars = buildVars(rental);
     const owners = await getOwners();
@@ -108,7 +107,7 @@ async function sendStatusEmails(
       if (ownerEmails.length > 0) {
         const def = EMAIL_TEMPLATE_DEFAULTS.owner_new_booking;
         const tmpl = tmplMap["owner_new_booking"] ?? def;
-        const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars, ical);
+        const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars);
         sendEmail({ to: ownerEmails, subject, html, templateType: "owner_new_booking", rentalId: rental.id }).catch(err =>
           logger.error({ err, rentalId: rental.id, template: "owner_new_booking" }, "Failed to send owner_new_booking email"),
         );
@@ -117,7 +116,7 @@ async function sendStatusEmails(
       if (rental.email) {
         const def = EMAIL_TEMPLATE_DEFAULTS.renter_submitted;
         const tmpl = tmplMap["renter_submitted"] ?? def;
-        const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars, ical);
+        const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars);
         sendEmail({ to: [rental.email], subject, html, templateType: "renter_submitted", rentalId: rental.id }).catch(err =>
           logger.error({ err, rentalId: rental.id, template: "renter_submitted" }, "Failed to send renter_submitted email"),
         );
@@ -126,6 +125,7 @@ async function sendStatusEmails(
       const baseUrl = getBaseUrl();
       const confirmUrl = `${baseUrl}/booking/${rental.confirmationToken}`;
       if (rental.email) {
+        const ical = buildIcalDataUrl({ ...rental, agreedPrice: rental.agreedPrice ?? null });
         const def = EMAIL_TEMPLATE_DEFAULTS.renter_confirmed;
         const tmpl = tmplMap["renter_confirmed"] ?? def;
         const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, { ...vars, ConfirmLink: confirmUrl }, ical);
@@ -136,7 +136,7 @@ async function sendStatusEmails(
       if (ownerEmails.length > 0) {
         const def = EMAIL_TEMPLATE_DEFAULTS.owner_confirmed;
         const tmpl = tmplMap["owner_confirmed"] ?? def;
-        const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars, ical);
+        const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars);
         sendEmail({ to: ownerEmails, subject, html, templateType: "owner_confirmed", rentalId: rental.id }).catch(err =>
           logger.error({ err, rentalId: rental.id, template: "owner_confirmed" }, "Failed to send owner_confirmed email"),
         );
@@ -418,7 +418,6 @@ router.patch("/rentals/:id", async (req, res) => {
       const needsManualRenter = sendRenterEmail && !autoSentToRenter;
 
       if (needsManualOwner || needsManualRenter) {
-        const ical = buildIcalDataUrl(rental);
         const tmplMap = await getTemplateMap();
         const vars = buildVars(rental);
 
@@ -428,13 +427,14 @@ router.patch("/rentals/:id", async (req, res) => {
           if (ownerEmails.length > 0) {
             const def = EMAIL_TEMPLATE_DEFAULTS.owner_confirmed;
             const tmpl = tmplMap["owner_confirmed"] ?? def;
-            const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars, ical);
+            const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars);
             sendEmail({ to: ownerEmails, subject, html, templateType: "owner_confirmed", rentalId: rental.id }).catch(err =>
               req.log.error({ err, rentalId: rental.id }, "Failed to send manual owner email"),
             );
           }
         }
         if (needsManualRenter && rental.email) {
+          const ical = buildIcalDataUrl({ ...rental, agreedPrice: rental.agreedPrice ?? null });
           const def = EMAIL_TEMPLATE_DEFAULTS.renter_confirmed;
           const tmpl = tmplMap["renter_confirmed"] ?? def;
           const confirmUrl = `${getBaseUrl()}/booking/${rental.confirmationToken}`;
@@ -450,6 +450,38 @@ router.patch("/rentals/:id", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Failed to update rental");
     res.status(500).json({ error: "Failed to update rental" });
+  }
+});
+
+router.post("/rentals/:id/resend-confirmation", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  if (!user || user.role !== "admin") {
+    res.status(403).json({ error: "Admin only" });
+    return;
+  }
+  const id = parseInt(String(req.params.id));
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  try {
+    const rows = await db.select().from(rentalsTable).where(eq(rentalsTable.id, id));
+    if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
+    const rental = rows[0];
+    if (!rental.email) {
+      res.status(400).json({ error: "Rental has no email address" });
+      return;
+    }
+    const ical = buildIcalDataUrl({ ...rental, agreedPrice: rental.agreedPrice ?? null });
+    const tmplMap = await getTemplateMap();
+    const vars = buildVars(rental);
+    const baseUrl = getBaseUrl();
+    const confirmUrl = `${baseUrl}/booking/${rental.confirmationToken}`;
+    const def = EMAIL_TEMPLATE_DEFAULTS.renter_confirmed;
+    const tmpl = tmplMap["renter_confirmed"] ?? def;
+    const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, { ...vars, ConfirmLink: confirmUrl }, ical);
+    const ok = await sendEmail({ to: [rental.email], subject, html, templateType: "renter_confirmed", rentalId: rental.id });
+    res.json({ ok, sentTo: rental.email });
+  } catch (err) {
+    req.log.error({ err, rentalId: id }, "Failed to resend confirmation email");
+    res.status(500).json({ error: "Server error" });
   }
 });
 

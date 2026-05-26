@@ -17,7 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, Phone, Mail, Calendar, Trash2, CheckCircle2, Clock, ChevronRight, Lock, ExternalLink, DollarSign, UserCheck, CalendarX, AlertTriangle } from "lucide-react";
+import { Loader2, Phone, Mail, Calendar, Trash2, CheckCircle2, Clock, ChevronRight, Lock, ExternalLink, DollarSign, UserCheck, CalendarX, AlertTriangle, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function RentalsTab() {
@@ -191,6 +191,7 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin, familyRa
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showUnreserveConfirm, setShowUnreserveConfirm] = useState(false);
+  const [resendState, setResendState] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   const { data: confirmations } = useGetBookingConfirmations(rental.id, { query: { queryKey: getGetBookingConfirmationsQueryKey(rental.id) } });
   const confirmMutation = useSetBookingConfirmation();
@@ -240,6 +241,29 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin, familyRa
         onError: () => toast({ title: "Error", description: "Failed", variant: "destructive" }),
       }
     );
+  }
+
+  async function handleResendConfirmation() {
+    setResendState("sending");
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await fetch(`/api/rentals/${rental.id}/resend-confirmation`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setResendState("sent");
+        toast({ title: "Email resent", description: `Confirmation email sent to ${data.sentTo}` });
+      } else {
+        setResendState("error");
+        toast({ title: "Failed to resend", description: data.error ?? "Unknown error", variant: "destructive" });
+      }
+    } catch {
+      setResendState("error");
+      toast({ title: "Failed to resend", description: "Network error", variant: "destructive" });
+    }
+    setTimeout(() => setResendState("idle"), 4000);
   }
 
   function handleUnreserve() {
@@ -411,6 +435,24 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin, familyRa
               {canConfirm && isAdmin && (
                 <Button size="sm" onClick={() => { onClose(); onConfirmClick(rental); }} className="bg-green-600 hover:bg-green-700 text-white">
                   <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Confirm Booking Now
+                </Button>
+              )}
+              {/* Resend confirmation email — admin only, when rental has email */}
+              {isAdmin && rental.email && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-blue-600 border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                  onClick={handleResendConfirmation}
+                  disabled={resendState === "sending"}
+                >
+                  {resendState === "sending" ? (
+                    <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />Sending…</>
+                  ) : resendState === "sent" ? (
+                    <><CheckCircle2 className="w-3.5 h-3.5 mr-1 text-green-600" />Sent</>
+                  ) : (
+                    <><Send className="w-3.5 h-3.5 mr-1" />Resend Confirmation</>
+                  )}
                 </Button>
               )}
               {/* Un-reserve (cancel) — admin only, for any non-cancelled booking */}
