@@ -4,7 +4,7 @@ import { db, settingsTable, changeHistoryTable, usersTable } from "@workspace/db
 import { eq } from "drizzle-orm";
 import { UpdateSettingsBody } from "@workspace/api-zod";
 import { DEFAULT_SEASONS, DEFAULT_HOLIDAYS, parseSeasons, parseHolidays } from "../lib/pricing";
-import { extractToken } from "../lib/auth";
+import { extractToken, requireAuth } from "../lib/auth";
 
 function parseHolidaysByYear(json: string): Record<string, ReturnType<typeof parseHolidays>> {
   try {
@@ -253,6 +253,35 @@ router.put("/settings", async (req, res) => {
     res.json(result);
   } catch (err) {
     req.log.error({ err }, "Failed to update settings");
+    res.status(500).json({ error: "Failed to update settings" });
+  }
+});
+
+router.patch("/settings", requireAuth, async (req, res) => {
+  const user = (req as any).user;
+  if (!user || user.role !== "admin") {
+    res.status(403).json({ error: "Admin only" });
+    return;
+  }
+  const body = req.body as Record<string, unknown>;
+  const updatePayload: Record<string, unknown> = {};
+  if (body.emailsEnabled !== undefined) {
+    updatePayload.emailsEnabled = body.emailsEnabled === true;
+  }
+  if (body.googleCalendarId !== undefined) {
+    const gcid = body.googleCalendarId;
+    updatePayload.googleCalendarId = typeof gcid === "string" && gcid.trim() !== "" ? gcid.trim() : null;
+  }
+  if (Object.keys(updatePayload).length === 0) {
+    res.status(400).json({ error: "No recognised fields to update" });
+    return;
+  }
+  try {
+    await db.update(settingsTable).set(updatePayload).where(eq(settingsTable.id, 1));
+    const rows = await db.select().from(settingsTable).where(eq(settingsTable.id, 1));
+    res.json(rowToApi(rows[0]));
+  } catch (err) {
+    req.log.error({ err }, "Failed to patch settings");
     res.status(500).json({ error: "Failed to update settings" });
   }
 });

@@ -399,11 +399,13 @@ function EmailKillSwitch() {
   const queryClient = useQueryClient();
   const { data: settings, isLoading } = useGetSettings();
   const [toggling, setToggling] = useState(false);
+  const [toggleError, setToggleError] = useState(false);
 
   const enabled = (settings as any)?.emailsEnabled ?? true;
 
   async function handleToggle(checked: boolean) {
     setToggling(true);
+    setToggleError(false);
     try {
       const token = localStorage.getItem("cottage_auth_token");
       const res = await fetch("/api/settings", {
@@ -413,7 +415,13 @@ function EmailKillSwitch() {
       });
       if (res.ok) {
         queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+      } else {
+        setToggleError(true);
+        setTimeout(() => setToggleError(false), 4000);
       }
+    } catch {
+      setToggleError(true);
+      setTimeout(() => setToggleError(false), 4000);
     } finally {
       setToggling(false);
     }
@@ -440,12 +448,17 @@ function EmailKillSwitch() {
               </p>
             </div>
           </div>
-          <Switch
-            checked={enabled}
-            onCheckedChange={handleToggle}
-            disabled={toggling}
-            className={enabled ? "" : "data-[state=unchecked]:bg-red-500"}
-          />
+          <div className="flex flex-col items-end gap-1">
+            <Switch
+              checked={enabled}
+              onCheckedChange={handleToggle}
+              disabled={toggling}
+              className={enabled ? "" : "data-[state=unchecked]:bg-red-500"}
+            />
+            {toggleError && (
+              <span className="text-xs text-red-600">Failed to save — try again</span>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
