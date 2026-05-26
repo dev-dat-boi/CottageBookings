@@ -6,10 +6,10 @@ import { sendEmail, buildEmailFromTemplate } from "../lib/email";
 
 const router = Router();
 
-function parseTemplatePatch(body: unknown): { subject?: string | null; body?: string | null } | null {
+function parseTemplatePatch(body: unknown): { subject?: string | null; body?: string | null; enabled?: boolean } | null {
   if (!body || typeof body !== "object") return null;
   const b = body as Record<string, unknown>;
-  const result: { subject?: string | null; body?: string | null } = {};
+  const result: { subject?: string | null; body?: string | null; enabled?: boolean } = {};
   if ("subject" in b) {
     if (b.subject != null && (typeof b.subject !== "string" || b.subject.trim() === "")) return null;
     result.subject = b.subject as string | null;
@@ -18,10 +18,34 @@ function parseTemplatePatch(body: unknown): { subject?: string | null; body?: st
     if (b.body != null && (typeof b.body !== "string" || b.body.trim() === "")) return null;
     result.body = b.body as string | null;
   }
+  if ("enabled" in b) {
+    if (typeof b.enabled !== "boolean") return null;
+    result.enabled = b.enabled;
+  }
   return result;
 }
 
 const DEFAULTS: Record<string, { name: string; subject: string; body: string; variables: string[] }> = {
+  renter_new_booking: {
+    name: "Renter: Booking Requested",
+    subject: "We Received Your Cottage Booking Request — [StartDate] to [EndDate]",
+    body: [
+      "Hi [Name],",
+      "",
+      "Thanks for your booking request! We've received it and have notified the owners for their approval.",
+      "",
+      "Dates: [StartDate] to [EndDate] ([Nights] nights)",
+      "Estimated Total: $[Total]",
+      "Rate: [RateType]",
+      "",
+      "Cottage Address: 40 Chem. Duncan E, Barkmere, QC J0T 2V0 Canada",
+      "",
+      "We'll be in touch once your booking has been reviewed. This usually takes 1–2 business days.",
+      "",
+      "Warm regards",
+    ].join('\n'),
+    variables: ["[Name]", "[StartDate]", "[EndDate]", "[Nights]", "[Total]", "[RateType]", "[ExtraDetails]"],
+  },
   owner_new_booking: {
     name: "Owners: New Booking Request",
     subject: "New Booking Request — [Name] ([StartDate] to [EndDate])",
@@ -76,6 +100,8 @@ const DEFAULTS: Record<string, { name: string; subject: string; body: string; va
       "Rate: [RateType]",
       "",
       "Cottage Address: 40 Chem. Duncan E, Barkmere, QC J0T 2V0 Canada",
+      "",
+      "A calendar invite (.ics) is attached to this email — open it to add the dates to your calendar.",
       "",
       "Please confirm your booking by clicking the link below:",
       "[ConfirmLink]",
@@ -139,6 +165,7 @@ function rowToApi(row: typeof emailTemplatesTable.$inferSelect) {
     name: row.name || meta?.name || row.type,
     subject: row.subject,
     body: row.body,
+    enabled: (row as any).enabled !== false,
     variables: meta?.variables ?? [],
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -151,6 +178,12 @@ function requireAdmin(req: any, res: any): boolean {
     return false;
   }
   return true;
+}
+
+export function isTemplateEnabled(type: string, tmplMap: Record<string, typeof emailTemplatesTable.$inferSelect>): boolean {
+  const row = tmplMap[type];
+  if (!row) return true;
+  return (row as any).enabled !== false;
 }
 
 router.get("/email-templates", requireAuth, async (req, res) => {
@@ -189,6 +222,7 @@ router.patch("/email-templates/:type", requireAuth, async (req, res) => {
     const updates: Partial<typeof emailTemplatesTable.$inferInsert> = { updatedAt: new Date() };
     if (parsed.subject != null) updates.subject = parsed.subject;
     if (parsed.body != null) updates.body = parsed.body;
+    if (parsed.enabled !== undefined) (updates as any).enabled = parsed.enabled;
     const rows = await db.update(emailTemplatesTable).set(updates).where(eq(emailTemplatesTable.type, type)).returning();
     if (rows.length === 0) { res.status(404).json({ error: "Not found" }); return; }
     res.json(rowToApi(rows[0]));

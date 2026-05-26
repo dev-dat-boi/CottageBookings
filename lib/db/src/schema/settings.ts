@@ -102,6 +102,7 @@ export const emailTemplatesTable = pgTable("email_templates", {
   name: text("name").notNull().default(''),
   subject: text("subject").notNull().default(''),
   body: text("body").notNull().default(''),
+  enabled: boolean("enabled").notNull().default(true),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 

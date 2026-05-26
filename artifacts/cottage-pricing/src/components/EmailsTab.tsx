@@ -23,9 +23,10 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 
-const TEMPLATE_ORDER = ["renter_confirmed", "owner_confirmed"];
+const TEMPLATE_ORDER = ["renter_new_booking", "renter_confirmed", "owner_confirmed"];
 
 const TEMPLATE_LABELS: Record<string, string> = {
+  renter_new_booking: "Booking Requested (Renter)",
   owner_new_booking: "New Booking (Owners)",
   renter_submitted: "Booking Approved (Renter)",
   renter_confirmed: "Booking Confirmed (Renter)",
@@ -41,18 +42,39 @@ function TemplateEditor({ template }: TemplateEditorProps) {
   const queryClient = useQueryClient();
   const [subject, setSubject] = useState(template.subject);
   const [body, setBody] = useState(template.body);
+  const [enabled, setEnabled] = useState((template as any).enabled !== false);
   const [saved, setSaved] = useState(false);
   const [copiedVar, setCopiedVar] = useState<string | null>(null);
   const [testState, setTestState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [testMsg, setTestMsg] = useState("");
+  const [togglingEnabled, setTogglingEnabled] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isDirty = subject !== template.subject || body !== template.body;
 
   useEffect(() => {
     setSubject(template.subject);
     setBody(template.body);
+    setEnabled((template as any).enabled !== false);
     setSaved(false);
   }, [template.type]);
+
+  async function handleToggleEnabled(checked: boolean) {
+    setTogglingEnabled(true);
+    try {
+      const token = localStorage.getItem("cottage_auth_token");
+      const res = await fetch(`/api/email-templates/${template.type}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ enabled: checked }),
+      });
+      if (res.ok) {
+        setEnabled(checked);
+        queryClient.invalidateQueries({ queryKey: getGetEmailTemplatesQueryKey() });
+      }
+    } finally {
+      setTogglingEnabled(false);
+    }
+  }
 
   const { mutate, isPending, isError } = useUpdateEmailTemplate({
     mutation: {
@@ -99,7 +121,7 @@ function TemplateEditor({ template }: TemplateEditorProps) {
     setTestState("sending");
     setTestMsg("");
     try {
-      const token = localStorage.getItem("authToken");
+      const token = localStorage.getItem("cottage_auth_token");
       const res = await fetch(`/api/email-templates/${template.type}/test`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
@@ -123,6 +145,24 @@ function TemplateEditor({ template }: TemplateEditorProps) {
 
   return (
     <div className="space-y-5">
+      <div className={`flex items-center justify-between gap-3 p-3 rounded-lg border ${enabled ? "border-border/40 bg-muted/20" : "border-amber-300 bg-amber-50/60"}`}>
+        <div className="flex items-center gap-2.5">
+          <Switch
+            checked={enabled}
+            onCheckedChange={handleToggleEnabled}
+            disabled={togglingEnabled}
+          />
+          <div>
+            <p className="text-sm font-medium leading-tight">
+              {enabled ? "Sending enabled" : "Sending disabled"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {enabled ? "This email will be sent automatically." : "This email type will be skipped."}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Clock className="w-3.5 h-3.5" />

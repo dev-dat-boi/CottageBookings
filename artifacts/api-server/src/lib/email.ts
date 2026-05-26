@@ -9,6 +9,7 @@ export interface EmailOptions {
   templateType?: string;
   rentalId?: number | null;
   isTest?: boolean;
+  icsAttachment?: string;
 }
 
 function getResend(): { client: Resend; from: string } | null {
@@ -75,12 +76,20 @@ export async function sendEmail(opts: EmailOptions): Promise<boolean> {
   const resend = getResend();
   if (resend) {
     try {
-      const { error } = await resend.client.emails.send({
+      const sendOpts: Parameters<typeof resend.client.emails.send>[0] = {
         from: resend.from,
         to: opts.to,
         subject: opts.subject,
         html: opts.html,
-      });
+      };
+      if (opts.icsAttachment) {
+        sendOpts.attachments = [{
+          filename: "booking.ics",
+          content: Buffer.from(opts.icsAttachment),
+          contentType: "text/calendar; charset=utf-8",
+        }];
+      }
+      const { error } = await resend.client.emails.send(sendOpts);
       if (error) throw new Error(error.message);
       await writeEmailLog({ recipients, templateType, rentalId: opts.rentalId, subject: opts.subject, success: true });
       return true;
@@ -99,7 +108,20 @@ export async function sendEmail(opts: EmailOptions): Promise<boolean> {
     return false;
   }
   try {
-    await config.transport.sendMail({ from: config.from, to: recipients, subject: opts.subject, html: opts.html });
+    const mailOpts: Parameters<typeof config.transport.sendMail>[0] = {
+      from: config.from,
+      to: recipients,
+      subject: opts.subject,
+      html: opts.html,
+    };
+    if (opts.icsAttachment) {
+      mailOpts.attachments = [{
+        filename: "booking.ics",
+        content: opts.icsAttachment,
+        contentType: "text/calendar; charset=utf-8; method=PUBLISH",
+      }];
+    }
+    await config.transport.sendMail(mailOpts);
     await writeEmailLog({ recipients, templateType, rentalId: opts.rentalId, subject: opts.subject, success: true });
     return true;
   } catch (err) {
@@ -140,57 +162,6 @@ export function buildIcalContent(rental: {
   ].filter(Boolean).join("\r\n");
 }
 
-export function buildIcalDataUrl(rental: {
-  renterName: string; startDate: string; endDate: string; extraDetails?: string;
-  totalPrice?: number; agreedPrice?: number | null;
-}): string {
-  return `data:text/calendar;base64,${Buffer.from(buildIcalContent(rental)).toString("base64")}`;
-}
-
-export function buildRentalEmailHtml(rental: {
-  renterName: string; phone: string; email: string; startDate: string; endDate: string;
-  nights: number; totalPrice: number; agreedPrice?: number | null; rateType: string; extraDetails?: string;
-}, icalDataUrl: string, forRenter = false): string {
-  const greeting = forRenter
-    ? `<p style="color:#555;margin:0 0 20px">Hi <strong>${rental.renterName}</strong>, your cottage rental has been confirmed!</p>`
-    : `<p style="color:#555;margin:0 0 20px">A new rental has been submitted.</p>`;
-
-  const priceRows = forRenter
-    ? (rental.agreedPrice != null
-        ? `<tr style="background:#f0f7f4;"><td style="padding:10px 12px;font-weight:bold;color:#555;">Agreed Price</td><td style="padding:10px 12px;font-weight:bold;color:#2d6a4f;">$${rental.agreedPrice.toFixed(2)}</td></tr>`
-        : `<tr style="background:#f0f7f4;"><td style="padding:10px 12px;font-weight:bold;color:#555;">Estimated Price</td><td style="padding:10px 12px;font-weight:bold;color:#2d6a4f;">$${rental.totalPrice.toFixed(2)}</td></tr>`)
-    : `<tr style="background:#f0f7f4;"><td style="padding:10px 12px;font-weight:bold;color:#555;">Estimated Price</td><td style="padding:10px 12px;font-weight:bold;color:#2d6a4f;">$${rental.totalPrice.toFixed(2)}</td></tr>
-      ${rental.agreedPrice != null ? `<tr><td style="padding:10px 12px;font-weight:bold;color:#555;">Agreed Price</td><td style="padding:10px 12px;font-weight:bold;color:${rental.agreedPrice < rental.totalPrice ? "#d97706" : "#16a34a"};">$${rental.agreedPrice.toFixed(2)} ${rental.agreedPrice < rental.totalPrice ? "↓" : "↑"}</td></tr>` : ""}`;
-
-  return `
-<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f9f9f9;">
-  <div style="background:#2d6a4f;padding:20px;border-radius:8px 8px 0 0;">
-    <h1 style="color:white;margin:0;font-size:22px;">Rental - ${rental.renterName}</h1>
-  </div>
-  <div style="background:white;padding:24px;border-radius:0 0 8px 8px;border:1px solid #e0e0e0;border-top:none;">
-    ${greeting}
-    <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
-      ${!forRenter ? `<tr style="background:#f0f7f4;"><td style="padding:10px 12px;font-weight:bold;color:#555;width:40%;">Renter</td><td style="padding:10px 12px;">${rental.renterName}</td></tr>
-      <tr><td style="padding:10px 12px;font-weight:bold;color:#555;">Phone</td><td style="padding:10px 12px;">${rental.phone}</td></tr>
-      <tr style="background:#f0f7f4;"><td style="padding:10px 12px;font-weight:bold;color:#555;">Email</td><td style="padding:10px 12px;">${rental.email}</td></tr>` : ""}
-      <tr ${forRenter ? 'style="background:#f0f7f4;"' : ""}><td style="padding:10px 12px;font-weight:bold;color:#555;">Check-in</td><td style="padding:10px 12px;">${rental.startDate}</td></tr>
-      <tr ${!forRenter ? 'style="background:#f0f7f4;"' : ""}><td style="padding:10px 12px;font-weight:bold;color:#555;">Check-out</td><td style="padding:10px 12px;">${rental.endDate}</td></tr>
-      <tr ${forRenter ? 'style="background:#f0f7f4;"' : ""}><td style="padding:10px 12px;font-weight:bold;color:#555;">Nights</td><td style="padding:10px 12px;">${rental.nights}</td></tr>
-      ${priceRows}
-      ${!forRenter ? `<tr><td style="padding:10px 12px;font-weight:bold;color:#555;">Rate Type</td><td style="padding:10px 12px;">${rental.rateType === "family" ? "Family Rate" : "Standard Rate"}</td></tr>` : ""}
-      ${rental.extraDetails ? `<tr style="background:#f0f7f4;"><td style="padding:10px 12px;font-weight:bold;color:#555;">Details</td><td style="padding:10px 12px;">${rental.extraDetails}</td></tr>` : ""}
-    </table>
-    <div style="text-align:center;margin-top:20px;">
-      <a href="${icalDataUrl}" download="rental-${rental.renterName.replace(/\s+/g, "-")}.ics"
-         style="background:#2d6a4f;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block;">
-        📅 Add to Calendar (.ics)
-      </a>
-    </div>
-    <p style="color:#aaa;font-size:12px;margin-top:24px;text-align:center;">Cottage Rental Management</p>
-  </div>
-</div>`;
-}
-
 export function substituteEmailVars(template: string, vars: Record<string, string>): string {
   return template.replace(/\[(\w+)\]/g, (_, key) => vars[key] ?? `[${key}]`);
 }
@@ -199,7 +170,6 @@ export function buildEmailFromTemplate(
   templateSubject: string,
   templateBody: string,
   vars: Record<string, string>,
-  icalDataUrl?: string,
 ): { subject: string; html: string } {
   const subject = substituteEmailVars(templateSubject, vars);
   const body = substituteEmailVars(templateBody, vars);
@@ -213,10 +183,6 @@ export function buildEmailFromTemplate(
     return `<p style="color:#444;margin:0 0 10px;font-size:14px;line-height:1.65">${line}</p>`;
   }).join('\n');
 
-  const icalSection = icalDataUrl
-    ? `<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center"><a href="${icalDataUrl}" download="rental.ics" style="color:#2d6a4f;font-size:13px;text-decoration:none;font-weight:500">📅 Download Calendar Event (.ics)</a></div>`
-    : '';
-
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f3f4f6;margin:0;padding:24px 16px">
 <div style="max-width:580px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08)">
   <div style="background:#2d6a4f;padding:20px 28px">
@@ -225,7 +191,6 @@ export function buildEmailFromTemplate(
   </div>
   <div style="padding:28px">
     ${htmlLines}
-    ${icalSection}
   </div>
   <div style="padding:14px 28px;background:#f9fafb;border-top:1px solid #e5e7eb;text-align:center">
     <p style="color:#9ca3af;font-size:12px;margin:0">Cottage Rental Management System</p>

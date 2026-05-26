@@ -254,14 +254,6 @@ export default function BookingConfirmationPage() {
           <Button
             variant="outline"
             className="flex-1"
-            onClick={() => window.open(gcalUrl, "_blank")}
-          >
-            <ExternalLink className="w-4 h-4 mr-2" />
-            Add to Google Calendar
-          </Button>
-          <Button
-            variant="outline"
-            className="flex-1"
             onClick={() => navigate("/")}
           >
             <ArrowLeft className="w-4 h-4 mr-2" />

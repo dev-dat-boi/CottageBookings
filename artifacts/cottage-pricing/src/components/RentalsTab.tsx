@@ -246,7 +246,7 @@ function RentalDetailDialog({ rental, onClose, onConfirmClick, isAdmin, familyRa
   async function handleResendConfirmation() {
     setResendState("sending");
     try {
-      const token = localStorage.getItem("authToken");
+      const token = localStorage.getItem("cottage_auth_token");
       const res = await fetch(`/api/rentals/${rental.id}/resend-confirmation`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },

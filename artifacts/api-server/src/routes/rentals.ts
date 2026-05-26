@@ -3,8 +3,8 @@ import { randomUUID } from "crypto";
 import { db, rentalsTable, settingsTable, ownerApprovalsTable, bookingConfirmationsTable, usersTable, emailTemplatesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { CreateRentalBody, UpdateRentalBody } from "@workspace/api-zod";
-import { sendEmail, buildIcalDataUrl, buildEmailFromTemplate } from "../lib/email";
-import { EMAIL_TEMPLATE_DEFAULTS } from "./emailTemplates";
+import { sendEmail, buildIcalContent, buildEmailFromTemplate } from "../lib/email";
+import { EMAIL_TEMPLATE_DEFAULTS, isTemplateEnabled } from "./emailTemplates";
 import { ensureDefaultSettings } from "./settings";
 import { extractToken, requireAuth } from "../lib/auth";
 import { logger } from "../lib/logger";
@@ -104,7 +104,7 @@ async function sendStatusEmails(
     const ownerEmails = owners.map(o => o.email).filter(Boolean);
 
     if (newStatus === "pending_approval") {
-      if (ownerEmails.length > 0) {
+      if (ownerEmails.length > 0 && isTemplateEnabled("owner_new_booking", tmplMap)) {
         const def = EMAIL_TEMPLATE_DEFAULTS.owner_new_booking;
         const tmpl = tmplMap["owner_new_booking"] ?? def;
         const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars);
@@ -112,8 +112,16 @@ async function sendStatusEmails(
           logger.error({ err, rentalId: rental.id, template: "owner_new_booking" }, "Failed to send owner_new_booking email"),
         );
       }
+      if (rental.email && isTemplateEnabled("renter_new_booking", tmplMap)) {
+        const def = EMAIL_TEMPLATE_DEFAULTS.renter_new_booking;
+        const tmpl = tmplMap["renter_new_booking"] ?? def;
+        const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars);
+        sendEmail({ to: [rental.email], subject, html, templateType: "renter_new_booking", rentalId: rental.id }).catch(err =>
+          logger.error({ err, rentalId: rental.id, template: "renter_new_booking" }, "Failed to send renter_new_booking email"),
+        );
+      }
     } else if (newStatus === "submitted") {
-      if (rental.email) {
+      if (rental.email && isTemplateEnabled("renter_submitted", tmplMap)) {
         const def = EMAIL_TEMPLATE_DEFAULTS.renter_submitted;
         const tmpl = tmplMap["renter_submitted"] ?? def;
         const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars);
@@ -124,16 +132,16 @@ async function sendStatusEmails(
     } else if (newStatus === "confirmed") {
       const baseUrl = getBaseUrl();
       const confirmUrl = `${baseUrl}/booking/${rental.confirmationToken}`;
-      if (rental.email) {
-        const ical = buildIcalDataUrl({ ...rental, agreedPrice: rental.agreedPrice ?? null });
+      if (rental.email && isTemplateEnabled("renter_confirmed", tmplMap)) {
+        const icsAttachment = buildIcalContent({ ...rental, agreedPrice: rental.agreedPrice ?? null });
         const def = EMAIL_TEMPLATE_DEFAULTS.renter_confirmed;
         const tmpl = tmplMap["renter_confirmed"] ?? def;
-        const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, { ...vars, ConfirmLink: confirmUrl }, ical);
-        sendEmail({ to: [rental.email], subject, html, templateType: "renter_confirmed", rentalId: rental.id }).catch(err =>
+        const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, { ...vars, ConfirmLink: confirmUrl });
+        sendEmail({ to: [rental.email], subject, html, templateType: "renter_confirmed", rentalId: rental.id, icsAttachment }).catch(err =>
           logger.error({ err, rentalId: rental.id, template: "renter_confirmed" }, "Failed to send renter_confirmed email"),
         );
       }
-      if (ownerEmails.length > 0) {
+      if (ownerEmails.length > 0 && isTemplateEnabled("owner_confirmed", tmplMap)) {
         const def = EMAIL_TEMPLATE_DEFAULTS.owner_confirmed;
         const tmpl = tmplMap["owner_confirmed"] ?? def;
         const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars);
@@ -142,7 +150,7 @@ async function sendStatusEmails(
         );
       }
     } else if (newStatus === "cancelled") {
-      if (rental.email) {
+      if (rental.email && isTemplateEnabled("renter_cancelled", tmplMap)) {
         const def = EMAIL_TEMPLATE_DEFAULTS.renter_cancelled;
         const tmpl = tmplMap["renter_cancelled"] ?? def;
         const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, vars);
@@ -433,13 +441,13 @@ router.patch("/rentals/:id", async (req, res) => {
             );
           }
         }
-        if (needsManualRenter && rental.email) {
-          const ical = buildIcalDataUrl({ ...rental, agreedPrice: rental.agreedPrice ?? null });
+        if (needsManualRenter && rental.email && isTemplateEnabled("renter_confirmed", tmplMap)) {
+          const icsAttachment = buildIcalContent({ ...rental, agreedPrice: rental.agreedPrice ?? null });
           const def = EMAIL_TEMPLATE_DEFAULTS.renter_confirmed;
           const tmpl = tmplMap["renter_confirmed"] ?? def;
           const confirmUrl = `${getBaseUrl()}/booking/${rental.confirmationToken}`;
-          const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, { ...vars, ConfirmLink: confirmUrl }, ical);
-          sendEmail({ to: [rental.email], subject, html, templateType: "renter_confirmed", rentalId: rental.id }).catch(err =>
+          const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, { ...vars, ConfirmLink: confirmUrl });
+          sendEmail({ to: [rental.email], subject, html, templateType: "renter_confirmed", rentalId: rental.id, icsAttachment }).catch(err =>
             req.log.error({ err, rentalId: rental.id }, "Failed to send manual renter email"),
           );
         }
@@ -469,15 +477,15 @@ router.post("/rentals/:id/resend-confirmation", requireAuth, async (req, res) =>
       res.status(400).json({ error: "Rental has no email address" });
       return;
     }
-    const ical = buildIcalDataUrl({ ...rental, agreedPrice: rental.agreedPrice ?? null });
+    const icsAttachment = buildIcalContent({ ...rental, agreedPrice: rental.agreedPrice ?? null });
     const tmplMap = await getTemplateMap();
     const vars = buildVars(rental);
     const baseUrl = getBaseUrl();
     const confirmUrl = `${baseUrl}/booking/${rental.confirmationToken}`;
     const def = EMAIL_TEMPLATE_DEFAULTS.renter_confirmed;
     const tmpl = tmplMap["renter_confirmed"] ?? def;
-    const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, { ...vars, ConfirmLink: confirmUrl }, ical);
-    const ok = await sendEmail({ to: [rental.email], subject, html, templateType: "renter_confirmed", rentalId: rental.id });
+    const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, { ...vars, ConfirmLink: confirmUrl });
+    const ok = await sendEmail({ to: [rental.email], subject, html, templateType: "renter_confirmed", rentalId: rental.id, icsAttachment });
     res.json({ ok, sentTo: rental.email });
   } catch (err) {
     req.log.error({ err, rentalId: id }, "Failed to resend confirmation email");
