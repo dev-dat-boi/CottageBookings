@@ -28,4 +28,12 @@ export interface Settings {
   googleCalendarId?: string;
   /** Read-only: the GOOGLE_CALENDAR_ID env var value, shown as a placeholder hint in the UI */
   googleCalendarIdEnvHint?: string;
+  /** Global kill switch — when false, no outgoing emails are sent */
+  emailsEnabled?: boolean;
+  /** Check-in time for calendar invites (HH:MM, e.g. 13:00) */
+  icsCheckinTime?: string;
+  /** Check-out time for calendar invites (HH:MM, e.g. 11:00) */
+  icsCheckoutTime?: string;
+  /** Event title template for calendar invites — [Name] is replaced with the renter's name */
+  icsSummaryTemplate?: string;
 }

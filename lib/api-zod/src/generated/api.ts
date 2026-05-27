@@ -56,7 +56,11 @@ export const GetSettingsResponse = zod.object({
   "familyRateCode": zod.string().optional().describe('Secret code required to access the family rate (empty means no code required)'),
   "sitePassword": zod.string().optional().describe('Password required to access the site'),
   "googleCalendarId": zod.string().optional().describe('Google Calendar ID to sync confirmed bookings to (overrides GOOGLE_CALENDAR_ID env var)'),
-  "googleCalendarIdEnvHint": zod.string().optional().describe('Read-only: the GOOGLE_CALENDAR_ID env var value, shown as a placeholder hint in the UI')
+  "googleCalendarIdEnvHint": zod.string().optional().describe('Read-only: the GOOGLE_CALENDAR_ID env var value, shown as a placeholder hint in the UI'),
+  "emailsEnabled": zod.boolean().optional().describe('Global kill switch — when false, no outgoing emails are sent'),
+  "icsCheckinTime": zod.string().optional().describe('Check-in time for calendar invites (HH:MM, e.g. 13:00)'),
+  "icsCheckoutTime": zod.string().optional().describe('Check-out time for calendar invites (HH:MM, e.g. 11:00)'),
+  "icsSummaryTemplate": zod.string().optional().describe('Event title template for calendar invites — [Name] is replaced with the renter\'s name')
 })
 
 
@@ -100,7 +104,11 @@ export const UpdateSettingsBody = zod.object({
   "familyRateCode": zod.string().optional().describe('Secret code required to access the family rate (empty means no code required)'),
   "sitePassword": zod.string().optional().describe('Password required to access the site'),
   "googleCalendarId": zod.string().optional().describe('Google Calendar ID to sync confirmed bookings to (overrides GOOGLE_CALENDAR_ID env var)'),
-  "googleCalendarIdEnvHint": zod.string().optional().describe('Read-only: the GOOGLE_CALENDAR_ID env var value, shown as a placeholder hint in the UI')
+  "googleCalendarIdEnvHint": zod.string().optional().describe('Read-only: the GOOGLE_CALENDAR_ID env var value, shown as a placeholder hint in the UI'),
+  "emailsEnabled": zod.boolean().optional().describe('Global kill switch — when false, no outgoing emails are sent'),
+  "icsCheckinTime": zod.string().optional().describe('Check-in time for calendar invites (HH:MM, e.g. 13:00)'),
+  "icsCheckoutTime": zod.string().optional().describe('Check-out time for calendar invites (HH:MM, e.g. 11:00)'),
+  "icsSummaryTemplate": zod.string().optional().describe('Event title template for calendar invites — [Name] is replaced with the renter\'s name')
 })
 
 export const UpdateSettingsResponse = zod.object({
@@ -140,7 +148,11 @@ export const UpdateSettingsResponse = zod.object({
   "familyRateCode": zod.string().optional().describe('Secret code required to access the family rate (empty means no code required)'),
   "sitePassword": zod.string().optional().describe('Password required to access the site'),
   "googleCalendarId": zod.string().optional().describe('Google Calendar ID to sync confirmed bookings to (overrides GOOGLE_CALENDAR_ID env var)'),
-  "googleCalendarIdEnvHint": zod.string().optional().describe('Read-only: the GOOGLE_CALENDAR_ID env var value, shown as a placeholder hint in the UI')
+  "googleCalendarIdEnvHint": zod.string().optional().describe('Read-only: the GOOGLE_CALENDAR_ID env var value, shown as a placeholder hint in the UI'),
+  "emailsEnabled": zod.boolean().optional().describe('Global kill switch — when false, no outgoing emails are sent'),
+  "icsCheckinTime": zod.string().optional().describe('Check-in time for calendar invites (HH:MM, e.g. 13:00)'),
+  "icsCheckoutTime": zod.string().optional().describe('Check-out time for calendar invites (HH:MM, e.g. 11:00)'),
+  "icsSummaryTemplate": zod.string().optional().describe('Event title template for calendar invites — [Name] is replaced with the renter\'s name')
 })
 
 

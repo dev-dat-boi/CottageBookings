@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { Save, Mail, Clock, AlertCircle, CheckCircle2, Loader2, Copy, Check, XCircle, RefreshCw, Send, ShieldAlert } from "lucide-react";
+import { Save, Mail, Clock, AlertCircle, CheckCircle2, Loader2, Copy, Check, XCircle, RefreshCw, Send, ShieldAlert, CalendarDays } from "lucide-react";
 import {
   useGetEmailTemplates,
   useUpdateEmailTemplate,
@@ -465,6 +465,168 @@ function EmailKillSwitch() {
   );
 }
 
+function IcsSettingsCard() {
+  const queryClient = useQueryClient();
+  const { data: settings, isLoading } = useGetSettings();
+
+  const [checkinTime, setCheckinTime] = useState("13:00");
+  const [checkoutTime, setCheckoutTime] = useState("11:00");
+  const [summaryTemplate, setSummaryTemplate] = useState("Cottage Rental — [Name]");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    if (settings && !initialized) {
+      setCheckinTime((settings as any).icsCheckinTime ?? "13:00");
+      setCheckoutTime((settings as any).icsCheckoutTime ?? "11:00");
+      setSummaryTemplate((settings as any).icsSummaryTemplate ?? "Cottage Rental — [Name]");
+      setInitialized(true);
+    }
+  }, [settings, initialized]);
+
+  const isDirty =
+    initialized &&
+    settings &&
+    (checkinTime !== ((settings as any).icsCheckinTime ?? "13:00") ||
+      checkoutTime !== ((settings as any).icsCheckoutTime ?? "11:00") ||
+      summaryTemplate !== ((settings as any).icsSummaryTemplate ?? "Cottage Rental — [Name]"));
+
+  async function handleSave() {
+    setSaving(true);
+    setSaveError(false);
+    try {
+      const token = localStorage.getItem("cottage_auth_token");
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ icsCheckinTime: checkinTime, icsCheckoutTime: checkoutTime, icsSummaryTemplate: summaryTemplate }),
+      });
+      if (res.ok) {
+        queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      } else {
+        setSaveError(true);
+        setTimeout(() => setSaveError(false), 4000);
+      }
+    } catch {
+      setSaveError(true);
+      setTimeout(() => setSaveError(false), 4000);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const previewSummary = summaryTemplate.replace(/\[Name\]/g, "[Renter Name]");
+  const previewCheckin = `[StartDate] at ${checkinTime}`;
+  const previewCheckout = `[EndDate] at ${checkoutTime}`;
+
+  if (isLoading) return null;
+
+  return (
+    <Card className="border border-border/40">
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+            <CalendarDays className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <CardTitle className="text-lg">Calendar Invite (.ics)</CardTitle>
+            <CardDescription className="text-sm">
+              Configure the calendar event sent as an attachment with booking confirmation emails.
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-4 space-y-6">
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="ics-checkin" className="text-sm font-medium">Check-in Time</Label>
+            <Input
+              id="ics-checkin"
+              type="time"
+              value={checkinTime}
+              onChange={e => setCheckinTime(e.target.value)}
+              className="font-mono"
+            />
+            <p className="text-xs text-muted-foreground">Time the renter can check in (e.g. 13:00)</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ics-checkout" className="text-sm font-medium">Check-out Time</Label>
+            <Input
+              id="ics-checkout"
+              type="time"
+              value={checkoutTime}
+              onChange={e => setCheckoutTime(e.target.value)}
+              className="font-mono"
+            />
+            <p className="text-xs text-muted-foreground">Time the renter must check out (e.g. 11:00)</p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="ics-summary" className="text-sm font-medium">Event Title Template</Label>
+          <Input
+            id="ics-summary"
+            value={summaryTemplate}
+            onChange={e => setSummaryTemplate(e.target.value)}
+            placeholder="Cottage Rental — [Name]"
+          />
+          <p className="text-xs text-muted-foreground">
+            Use <code className="bg-muted px-1 py-0.5 rounded">[Name]</code> to insert the renter's name.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Event Preview</Label>
+          <div className="rounded-lg border border-border/40 bg-muted/20 font-mono text-xs p-4 space-y-1 leading-relaxed">
+            <div><span className="text-muted-foreground">SUMMARY:</span> <span className="text-foreground">{previewSummary}</span></div>
+            <div><span className="text-muted-foreground">DTSTART:</span> <span className="text-foreground">{previewCheckin}</span></div>
+            <div><span className="text-muted-foreground">DTEND:</span> <span className="text-foreground">{previewCheckout}</span></div>
+            <div><span className="text-muted-foreground">LOCATION:</span> <span className="text-foreground">40 Chemin Duncan Est, Barkmere, QC J0T 2V0, Canada</span></div>
+            <div className="pt-1 border-t border-border/30">
+              <span className="text-muted-foreground">DESCRIPTION:</span>
+              <div className="pl-4 mt-1 space-y-0.5 text-foreground/80">
+                <div>{previewSummary}</div>
+                <div>Check-in: [StartDate] at {checkinTime}</div>
+                <div>Check-out: [EndDate] at {checkoutTime}</div>
+                <div>Nights: [Nights]</div>
+                <div>[PriceDisplay]</div>
+                <div>Address: 40 Chemin Duncan Est, Barkmere, QC J0T 2V0, Canada</div>
+              </div>
+            </div>
+            <div className="pt-1 border-t border-border/30">
+              <span className="text-muted-foreground">URL:</span> <span className="text-foreground">https://your-app.com/booking/[token]</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Button onClick={handleSave} disabled={saving || !isDirty} size="sm">
+            {saving ? (
+              <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving…</>
+            ) : (
+              <><Save className="w-3.5 h-3.5 mr-1.5" />Save Changes</>
+            )}
+          </Button>
+          {saved && (
+            <span className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
+              <CheckCircle2 className="w-3.5 h-3.5" /> Saved
+            </span>
+          )}
+          {saveError && (
+            <span className="flex items-center gap-1.5 text-xs text-red-600 font-medium">
+              <AlertCircle className="w-3.5 h-3.5" /> Failed to save
+            </span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function EmailsTab() {
   const { isAdmin } = useAuth();
   const { data: templates, isLoading, isError } = useGetEmailTemplates();
@@ -498,6 +660,7 @@ export function EmailsTab() {
   return (
     <div className="space-y-6">
       {isAdmin && <EmailKillSwitch />}
+      {isAdmin && <IcsSettingsCard />}
 
       <Card className="border border-border/40">
         <CardHeader className="pb-2">

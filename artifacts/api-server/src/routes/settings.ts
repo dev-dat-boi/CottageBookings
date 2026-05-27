@@ -36,6 +36,9 @@ function rowToApi(row: typeof settingsTable.$inferSelect) {
     // Non-sensitive hint: lets the UI show the env-var value as a placeholder
     googleCalendarIdEnvHint: process.env.GOOGLE_CALENDAR_ID ?? undefined,
     emailsEnabled: (row as any).emailsEnabled ?? true,
+    icsCheckinTime: (row as any).icsCheckinTime ?? "13:00",
+    icsCheckoutTime: (row as any).icsCheckoutTime ?? "11:00",
+    icsSummaryTemplate: (row as any).icsSummaryTemplate ?? "Cottage Rental — [Name]",
     seasons,
     dayMultipliers: {
       Monday: row.dayMonday,
@@ -235,6 +238,15 @@ router.put("/settings", async (req, res) => {
     if ((body as any).emailsEnabled !== undefined) {
       updatePayload.emailsEnabled = (body as any).emailsEnabled === true;
     }
+    if ((body as any).icsCheckinTime !== undefined) {
+      updatePayload.icsCheckinTime = String((body as any).icsCheckinTime);
+    }
+    if ((body as any).icsCheckoutTime !== undefined) {
+      updatePayload.icsCheckoutTime = String((body as any).icsCheckoutTime);
+    }
+    if ((body as any).icsSummaryTemplate !== undefined) {
+      updatePayload.icsSummaryTemplate = String((body as any).icsSummaryTemplate);
+    }
     await db.update(settingsTable).set(updatePayload).where(eq(settingsTable.id, 1));
 
     const createdPasswords = await syncOwnersToUsers(oldOwners, newOwners);
@@ -271,6 +283,15 @@ router.patch("/settings", requireAuth, async (req, res) => {
   if (body.googleCalendarId !== undefined) {
     const gcid = body.googleCalendarId;
     updatePayload.googleCalendarId = typeof gcid === "string" && gcid.trim() !== "" ? gcid.trim() : null;
+  }
+  if (body.icsCheckinTime !== undefined) {
+    updatePayload.icsCheckinTime = String(body.icsCheckinTime);
+  }
+  if (body.icsCheckoutTime !== undefined) {
+    updatePayload.icsCheckoutTime = String(body.icsCheckoutTime);
+  }
+  if (body.icsSummaryTemplate !== undefined) {
+    updatePayload.icsSummaryTemplate = String(body.icsSummaryTemplate);
   }
   if (Object.keys(updatePayload).length === 0) {
     res.status(400).json({ error: "No recognised fields to update" });

@@ -106,6 +106,8 @@ async function sendStatusEmails(
     const vars = buildVars(rental);
     const owners = await getOwners();
     const ownerEmails = owners.map(o => o.email).filter(Boolean);
+    const settingsRows = await ensureDefaultSettings();
+    const icsSettings = settingsRows[0] as any;
 
     if (newStatus === "pending_approval") {
       if (ownerEmails.length > 0 && isTemplateEnabled("owner_new_booking", tmplMap)) {
@@ -137,7 +139,15 @@ async function sendStatusEmails(
       const baseUrl = getBaseUrl();
       const confirmUrl = `${baseUrl}/booking/${rental.confirmationToken}`;
       if (rental.email && isTemplateEnabled("renter_confirmed", tmplMap)) {
-        const icsAttachment = buildIcalContent({ ...rental, agreedPrice: rental.agreedPrice ?? null });
+        const icsAttachment = buildIcalContent(
+          { ...rental, agreedPrice: rental.agreedPrice ?? null },
+          {
+            checkinTime: icsSettings?.icsCheckinTime ?? "13:00",
+            checkoutTime: icsSettings?.icsCheckoutTime ?? "11:00",
+            summaryTemplate: icsSettings?.icsSummaryTemplate ?? "Cottage Rental — [Name]",
+            confirmUrl,
+          },
+        );
         const def = EMAIL_TEMPLATE_DEFAULTS.renter_confirmed;
         const tmpl = tmplMap["renter_confirmed"] ?? def;
         const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, { ...vars, ConfirmLink: confirmUrl });
@@ -446,10 +456,20 @@ router.patch("/rentals/:id", async (req, res) => {
           }
         }
         if (needsManualRenter && rental.email && isTemplateEnabled("renter_confirmed", tmplMap)) {
-          const icsAttachment = buildIcalContent({ ...rental, agreedPrice: rental.agreedPrice ?? null });
+          const manualConfirmUrl = `${getBaseUrl()}/booking/${rental.confirmationToken}`;
+          const manualIcsSettings = (await ensureDefaultSettings())[0] as any;
+          const icsAttachment = buildIcalContent(
+            { ...rental, agreedPrice: rental.agreedPrice ?? null },
+            {
+              checkinTime: manualIcsSettings?.icsCheckinTime ?? "13:00",
+              checkoutTime: manualIcsSettings?.icsCheckoutTime ?? "11:00",
+              summaryTemplate: manualIcsSettings?.icsSummaryTemplate ?? "Cottage Rental — [Name]",
+              confirmUrl: manualConfirmUrl,
+            },
+          );
           const def = EMAIL_TEMPLATE_DEFAULTS.renter_confirmed;
           const tmpl = tmplMap["renter_confirmed"] ?? def;
-          const confirmUrl = `${getBaseUrl()}/booking/${rental.confirmationToken}`;
+          const confirmUrl = manualConfirmUrl;
           const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, { ...vars, ConfirmLink: confirmUrl });
           sendEmail({ to: [rental.email], subject, html, templateType: "renter_confirmed", rentalId: rental.id, icsAttachment }).catch(err =>
             req.log.error({ err, rentalId: rental.id }, "Failed to send manual renter email"),
@@ -481,11 +501,20 @@ router.post("/rentals/:id/resend-confirmation", requireAuth, async (req, res) =>
       res.status(400).json({ error: "Rental has no email address" });
       return;
     }
-    const icsAttachment = buildIcalContent({ ...rental, agreedPrice: rental.agreedPrice ?? null });
     const tmplMap = await getTemplateMap();
     const vars = buildVars(rental);
     const baseUrl = getBaseUrl();
     const confirmUrl = `${baseUrl}/booking/${rental.confirmationToken}`;
+    const resendIcsSettings = (await ensureDefaultSettings())[0] as any;
+    const icsAttachment = buildIcalContent(
+      { ...rental, agreedPrice: rental.agreedPrice ?? null },
+      {
+        checkinTime: resendIcsSettings?.icsCheckinTime ?? "13:00",
+        checkoutTime: resendIcsSettings?.icsCheckoutTime ?? "11:00",
+        summaryTemplate: resendIcsSettings?.icsSummaryTemplate ?? "Cottage Rental — [Name]",
+        confirmUrl,
+      },
+    );
     const def = EMAIL_TEMPLATE_DEFAULTS.renter_confirmed;
     const tmpl = tmplMap["renter_confirmed"] ?? def;
     const { subject, html } = buildEmailFromTemplate(tmpl.subject, tmpl.body, { ...vars, ConfirmLink: confirmUrl });

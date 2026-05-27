@@ -888,6 +888,18 @@ components:
         googleCalendarIdEnvHint:
           type: string
           description: "Read-only: the GOOGLE_CALENDAR_ID env var value, shown as a placeholder hint in the UI"
+        emailsEnabled:
+          type: boolean
+          description: "Global kill switch — when false, no outgoing emails are sent"
+        icsCheckinTime:
+          type: string
+          description: "Check-in time for calendar invites (HH:MM, e.g. 13:00)"
+        icsCheckoutTime:
+          type: string
+          description: "Check-out time for calendar invites (HH:MM, e.g. 11:00)"
+        icsSummaryTemplate:
+          type: string
+          description: "Event title template for calendar invites — [Name] is replaced with the renter's name"
       required: [basePrice, familyRate, seasons, dayMultipliers, holidays]
 
     SitePasswordBody:

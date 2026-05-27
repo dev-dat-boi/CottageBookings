@@ -21,6 +21,9 @@ export const settingsTable = pgTable("settings", {
   sitePassword: text("site_password").notNull().default('cottage2025'),
   googleCalendarId: text("google_calendar_id"),
   emailsEnabled: boolean("emails_enabled").notNull().default(true),
+  icsCheckinTime: text("ics_checkin_time").notNull().default('13:00'),
+  icsCheckoutTime: text("ics_checkout_time").notNull().default('11:00'),
+  icsSummaryTemplate: text("ics_summary_template").notNull().default('Cottage Rental — [Name]'),
 });
 
 export const dayOverridesTable = pgTable("day_overrides", {

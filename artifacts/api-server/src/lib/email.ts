@@ -147,24 +147,43 @@ function foldIcalLine(line: string): string {
   return parts.join("\r\n");
 }
 
-export function buildIcalContent(rental: {
-  renterName: string; phone?: string | null; email?: string | null;
-  startDate: string; endDate: string; nights?: number | null;
-  totalPrice?: number | null; agreedPrice?: number | null;
-  rateType?: string | null; extraDetails?: string | null;
-}): string {
+export interface IcalOptions {
+  checkinTime?: string;
+  checkoutTime?: string;
+  summaryTemplate?: string;
+  confirmUrl?: string;
+}
+
+function timeToIcal(t: string): string {
+  return t.replace(":", "") + "00";
+}
+
+export function buildIcalContent(
+  rental: {
+    renterName: string; phone?: string | null; email?: string | null;
+    startDate: string; endDate: string; nights?: number | null;
+    totalPrice?: number | null; agreedPrice?: number | null;
+    rateType?: string | null; extraDetails?: string | null;
+  },
+  options: IcalOptions = {},
+): string {
+  const checkinTime = options.checkinTime ?? "13:00";
+  const checkoutTime = options.checkoutTime ?? "11:00";
+  const summaryTemplate = options.summaryTemplate ?? "Cottage Rental — [Name]";
+  const summary = summaryTemplate.replace(/\[Name\]/g, rental.renterName);
+
   const uid = `rental-${rental.renterName.replace(/\s+/g, "-")}-${rental.startDate}@40duncan`;
   const dtStamp = new Date().toISOString().replace(/[-:.]/g, "").slice(0, 15) + "Z";
 
   const [sy, sm, sd] = rental.startDate.split("-");
   const [ey, em, ed] = rental.endDate.split("-");
-  const dtStart = `${sy}${sm}${sd}T130000`;
-  const dtEnd = `${ey}${em}${ed}T110000`;
+  const dtStart = `${sy}${sm}${sd}T${timeToIcal(checkinTime)}`;
+  const dtEnd = `${ey}${em}${ed}T${timeToIcal(checkoutTime)}`;
 
   const descLines: string[] = [];
-  descLines.push(`Cottage Rental — ${rental.renterName}`);
-  descLines.push(`Check-in: ${rental.startDate} at 13:00`);
-  descLines.push(`Check-out: ${rental.endDate} at 11:00`);
+  descLines.push(summary);
+  descLines.push(`Check-in: ${rental.startDate} at ${checkinTime}`);
+  descLines.push(`Check-out: ${rental.endDate} at ${checkoutTime}`);
   if (rental.nights != null) descLines.push(`Nights: ${rental.nights}`);
   if (rental.agreedPrice != null) descLines.push(`Agreed Price: $${Number(rental.agreedPrice).toFixed(2)}`);
   else if (rental.totalPrice != null) descLines.push(`Estimated Total: $${Number(rental.totalPrice).toFixed(2)}`);
@@ -183,10 +202,11 @@ export function buildIcalContent(rental: {
     `DTSTAMP:${dtStamp}`,
     `DTSTART:${dtStart}`,
     `DTEND:${dtEnd}`,
-    `SUMMARY:Cottage Rental — ${rental.renterName}`,
+    `SUMMARY:${summary}`,
     `LOCATION:${COTTAGE_ADDRESS}`,
     `DESCRIPTION:${description}`,
     `ORGANIZER;CN=40 Duncan:mailto:${COTTAGE_EMAIL}`,
+    ...(options.confirmUrl ? [`URL:${options.confirmUrl}`] : []),
     "END:VEVENT",
     "END:VCALENDAR",
   ];
