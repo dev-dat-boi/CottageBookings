@@ -43,6 +43,13 @@
       "when": 1779844304291,
       "tag": "0005_wakeful_sinister_six",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779845535530,
+      "tag": "0006_last_mole_man",
+      "breakpoints": true
     }
   ]
 }

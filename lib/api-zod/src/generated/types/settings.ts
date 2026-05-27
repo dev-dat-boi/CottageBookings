@@ -36,4 +36,8 @@ export interface Settings {
   icsCheckoutTime?: string;
   /** Event title template for calendar invites — [Name] is replaced with the renter's name */
   icsSummaryTemplate?: string;
+  /** Cottage address shown in the LOCATION field of calendar invites */
+  icsLocation?: string;
+  /** Email address shown as the organizer in calendar invites */
+  icsOrganizerEmail?: string;
 }

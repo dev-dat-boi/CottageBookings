@@ -39,6 +39,8 @@ function rowToApi(row: typeof settingsTable.$inferSelect) {
     icsCheckinTime: (row as any).icsCheckinTime ?? "13:00",
     icsCheckoutTime: (row as any).icsCheckoutTime ?? "11:00",
     icsSummaryTemplate: (row as any).icsSummaryTemplate ?? "Cottage Rental — [Name]",
+    icsLocation: (row as any).icsLocation ?? "40 Chemin Duncan Est, Barkmere, QC J0T 2V0, Canada",
+    icsOrganizerEmail: (row as any).icsOrganizerEmail ?? "Bookings@40duncan.com",
     seasons,
     dayMultipliers: {
       Monday: row.dayMonday,
@@ -247,6 +249,12 @@ router.put("/settings", async (req, res) => {
     if ((body as any).icsSummaryTemplate !== undefined) {
       updatePayload.icsSummaryTemplate = String((body as any).icsSummaryTemplate);
     }
+    if ((body as any).icsLocation !== undefined) {
+      updatePayload.icsLocation = String((body as any).icsLocation);
+    }
+    if ((body as any).icsOrganizerEmail !== undefined) {
+      updatePayload.icsOrganizerEmail = String((body as any).icsOrganizerEmail);
+    }
     await db.update(settingsTable).set(updatePayload).where(eq(settingsTable.id, 1));
 
     const createdPasswords = await syncOwnersToUsers(oldOwners, newOwners);
@@ -292,6 +300,12 @@ router.patch("/settings", requireAuth, async (req, res) => {
   }
   if (body.icsSummaryTemplate !== undefined) {
     updatePayload.icsSummaryTemplate = String(body.icsSummaryTemplate);
+  }
+  if (body.icsLocation !== undefined) {
+    updatePayload.icsLocation = String(body.icsLocation);
+  }
+  if (body.icsOrganizerEmail !== undefined) {
+    updatePayload.icsOrganizerEmail = String(body.icsOrganizerEmail);
   }
   if (Object.keys(updatePayload).length === 0) {
     res.status(400).json({ error: "No recognised fields to update" });

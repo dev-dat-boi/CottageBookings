@@ -152,6 +152,8 @@ export interface IcalOptions {
   checkoutTime?: string;
   summaryTemplate?: string;
   confirmUrl?: string;
+  location?: string;
+  organizerEmail?: string;
 }
 
 function timeToIcal(t: string): string {
@@ -180,6 +182,9 @@ export function buildIcalContent(
   const dtStart = `${sy}${sm}${sd}T${timeToIcal(checkinTime)}`;
   const dtEnd = `${ey}${em}${ed}T${timeToIcal(checkoutTime)}`;
 
+  const location = options.location ?? COTTAGE_ADDRESS;
+  const organizerEmail = options.organizerEmail ?? COTTAGE_EMAIL;
+
   const descLines: string[] = [];
   descLines.push(summary);
   descLines.push(`Check-in: ${rental.startDate} at ${checkinTime}`);
@@ -188,8 +193,8 @@ export function buildIcalContent(
   if (rental.agreedPrice != null) descLines.push(`Agreed Price: $${Number(rental.agreedPrice).toFixed(2)}`);
   else if (rental.totalPrice != null) descLines.push(`Estimated Total: $${Number(rental.totalPrice).toFixed(2)}`);
   if (rental.extraDetails) descLines.push(`Notes: ${rental.extraDetails}`);
-  descLines.push(`Address: ${COTTAGE_ADDRESS}`);
-  descLines.push(`Contact: ${COTTAGE_EMAIL}`);
+  descLines.push(`Address: ${location}`);
+  descLines.push(`Contact: ${organizerEmail}`);
 
   const description = descLines.join("\\n");
 
@@ -203,9 +208,9 @@ export function buildIcalContent(
     `DTSTART:${dtStart}`,
     `DTEND:${dtEnd}`,
     `SUMMARY:${summary}`,
-    `LOCATION:${COTTAGE_ADDRESS}`,
+    `LOCATION:${location}`,
     `DESCRIPTION:${description}`,
-    `ORGANIZER;CN=40 Duncan:mailto:${COTTAGE_EMAIL}`,
+    `ORGANIZER;CN=40 Duncan:mailto:${organizerEmail}`,
     ...(options.confirmUrl ? [`URL:${options.confirmUrl}`] : []),
     "END:VEVENT",
     "END:VCALENDAR",

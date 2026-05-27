@@ -923,6 +923,12 @@ components:
         icsSummaryTemplate:
           type: string
           description: "Event title template for calendar invites — [Name] is replaced with the renter's name"
+        icsLocation:
+          type: string
+          description: "Cottage address shown in the LOCATION field of calendar invites"
+        icsOrganizerEmail:
+          type: string
+          description: "Email address shown as the organizer in calendar invites"
       required: [basePrice, familyRate, seasons, dayMultipliers, holidays]
 
     SitePasswordBody:

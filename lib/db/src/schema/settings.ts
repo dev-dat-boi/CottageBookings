@@ -24,6 +24,8 @@ export const settingsTable = pgTable("settings", {
   icsCheckinTime: text("ics_checkin_time").notNull().default('13:00'),
   icsCheckoutTime: text("ics_checkout_time").notNull().default('11:00'),
   icsSummaryTemplate: text("ics_summary_template").notNull().default('Cottage Rental — [Name]'),
+  icsLocation: text("ics_location").notNull().default('40 Chemin Duncan Est, Barkmere, QC J0T 2V0, Canada'),
+  icsOrganizerEmail: text("ics_organizer_email").notNull().default('Bookings@40duncan.com'),
 });
 
 export const dayOverridesTable = pgTable("day_overrides", {

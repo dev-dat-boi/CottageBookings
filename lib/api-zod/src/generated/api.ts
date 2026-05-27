@@ -60,7 +60,9 @@ export const GetSettingsResponse = zod.object({
   "emailsEnabled": zod.boolean().optional().describe('Global kill switch — when false, no outgoing emails are sent'),
   "icsCheckinTime": zod.string().optional().describe('Check-in time for calendar invites (HH:MM, e.g. 13:00)'),
   "icsCheckoutTime": zod.string().optional().describe('Check-out time for calendar invites (HH:MM, e.g. 11:00)'),
-  "icsSummaryTemplate": zod.string().optional().describe('Event title template for calendar invites — [Name] is replaced with the renter\'s name')
+  "icsSummaryTemplate": zod.string().optional().describe('Event title template for calendar invites — [Name] is replaced with the renter\'s name'),
+  "icsLocation": zod.string().optional().describe('Cottage address shown in the LOCATION field of calendar invites'),
+  "icsOrganizerEmail": zod.string().optional().describe('Email address shown as the organizer in calendar invites')
 })
 
 
@@ -108,7 +110,9 @@ export const UpdateSettingsBody = zod.object({
   "emailsEnabled": zod.boolean().optional().describe('Global kill switch — when false, no outgoing emails are sent'),
   "icsCheckinTime": zod.string().optional().describe('Check-in time for calendar invites (HH:MM, e.g. 13:00)'),
   "icsCheckoutTime": zod.string().optional().describe('Check-out time for calendar invites (HH:MM, e.g. 11:00)'),
-  "icsSummaryTemplate": zod.string().optional().describe('Event title template for calendar invites — [Name] is replaced with the renter\'s name')
+  "icsSummaryTemplate": zod.string().optional().describe('Event title template for calendar invites — [Name] is replaced with the renter\'s name'),
+  "icsLocation": zod.string().optional().describe('Cottage address shown in the LOCATION field of calendar invites'),
+  "icsOrganizerEmail": zod.string().optional().describe('Email address shown as the organizer in calendar invites')
 })
 
 export const UpdateSettingsResponse = zod.object({
@@ -152,7 +156,9 @@ export const UpdateSettingsResponse = zod.object({
   "emailsEnabled": zod.boolean().optional().describe('Global kill switch — when false, no outgoing emails are sent'),
   "icsCheckinTime": zod.string().optional().describe('Check-in time for calendar invites (HH:MM, e.g. 13:00)'),
   "icsCheckoutTime": zod.string().optional().describe('Check-out time for calendar invites (HH:MM, e.g. 11:00)'),
-  "icsSummaryTemplate": zod.string().optional().describe('Event title template for calendar invites — [Name] is replaced with the renter\'s name')
+  "icsSummaryTemplate": zod.string().optional().describe('Event title template for calendar invites — [Name] is replaced with the renter\'s name'),
+  "icsLocation": zod.string().optional().describe('Cottage address shown in the LOCATION field of calendar invites'),
+  "icsOrganizerEmail": zod.string().optional().describe('Email address shown as the organizer in calendar invites')
 })
 
 

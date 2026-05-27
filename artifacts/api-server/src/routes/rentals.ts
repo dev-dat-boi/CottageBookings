@@ -145,6 +145,8 @@ async function sendStatusEmails(
             checkinTime: icsSettings?.icsCheckinTime ?? "13:00",
             checkoutTime: icsSettings?.icsCheckoutTime ?? "11:00",
             summaryTemplate: icsSettings?.icsSummaryTemplate ?? "Cottage Rental — [Name]",
+            location: icsSettings?.icsLocation ?? undefined,
+            organizerEmail: icsSettings?.icsOrganizerEmail ?? undefined,
             confirmUrl,
           },
         );
@@ -487,6 +489,8 @@ router.patch("/rentals/:id", async (req, res) => {
               checkinTime: manualIcsSettings?.icsCheckinTime ?? "13:00",
               checkoutTime: manualIcsSettings?.icsCheckoutTime ?? "11:00",
               summaryTemplate: manualIcsSettings?.icsSummaryTemplate ?? "Cottage Rental — [Name]",
+              location: manualIcsSettings?.icsLocation ?? undefined,
+              organizerEmail: manualIcsSettings?.icsOrganizerEmail ?? undefined,
               confirmUrl: manualConfirmUrl,
             },
           );
@@ -535,6 +539,8 @@ router.post("/rentals/:id/resend-confirmation", requireAuth, async (req, res) =>
         checkinTime: resendIcsSettings?.icsCheckinTime ?? "13:00",
         checkoutTime: resendIcsSettings?.icsCheckoutTime ?? "11:00",
         summaryTemplate: resendIcsSettings?.icsSummaryTemplate ?? "Cottage Rental — [Name]",
+        location: resendIcsSettings?.icsLocation ?? undefined,
+        organizerEmail: resendIcsSettings?.icsOrganizerEmail ?? undefined,
         confirmUrl,
       },
     );

@@ -472,6 +472,8 @@ function IcsSettingsCard() {
   const [checkinTime, setCheckinTime] = useState("13:00");
   const [checkoutTime, setCheckoutTime] = useState("11:00");
   const [summaryTemplate, setSummaryTemplate] = useState("Cottage Rental — [Name]");
+  const [location, setLocation] = useState("40 Chemin Duncan Est, Barkmere, QC J0T 2V0, Canada");
+  const [organizerEmail, setOrganizerEmail] = useState("Bookings@40duncan.com");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState(false);
@@ -482,6 +484,8 @@ function IcsSettingsCard() {
       setCheckinTime((settings as any).icsCheckinTime ?? "13:00");
       setCheckoutTime((settings as any).icsCheckoutTime ?? "11:00");
       setSummaryTemplate((settings as any).icsSummaryTemplate ?? "Cottage Rental — [Name]");
+      setLocation((settings as any).icsLocation ?? "40 Chemin Duncan Est, Barkmere, QC J0T 2V0, Canada");
+      setOrganizerEmail((settings as any).icsOrganizerEmail ?? "Bookings@40duncan.com");
       setInitialized(true);
     }
   }, [settings, initialized]);
@@ -491,7 +495,9 @@ function IcsSettingsCard() {
     settings &&
     (checkinTime !== ((settings as any).icsCheckinTime ?? "13:00") ||
       checkoutTime !== ((settings as any).icsCheckoutTime ?? "11:00") ||
-      summaryTemplate !== ((settings as any).icsSummaryTemplate ?? "Cottage Rental — [Name]"));
+      summaryTemplate !== ((settings as any).icsSummaryTemplate ?? "Cottage Rental — [Name]") ||
+      location !== ((settings as any).icsLocation ?? "40 Chemin Duncan Est, Barkmere, QC J0T 2V0, Canada") ||
+      organizerEmail !== ((settings as any).icsOrganizerEmail ?? "Bookings@40duncan.com"));
 
   async function handleSave() {
     setSaving(true);
@@ -501,7 +507,7 @@ function IcsSettingsCard() {
       const res = await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ icsCheckinTime: checkinTime, icsCheckoutTime: checkoutTime, icsSummaryTemplate: summaryTemplate }),
+        body: JSON.stringify({ icsCheckinTime: checkinTime, icsCheckoutTime: checkoutTime, icsSummaryTemplate: summaryTemplate, icsLocation: location, icsOrganizerEmail: organizerEmail }),
       });
       if (res.ok) {
         queryClient.invalidateQueries({ queryKey: getGetSettingsQueryKey() });
@@ -522,6 +528,8 @@ function IcsSettingsCard() {
   const previewSummary = summaryTemplate.replace(/\[Name\]/g, "[Renter Name]");
   const previewCheckin = `[StartDate] at ${checkinTime}`;
   const previewCheckout = `[EndDate] at ${checkoutTime}`;
+  const previewLocation = location || "—";
+  const previewOrganizer = organizerEmail || "—";
 
   if (isLoading) return null;
 
@@ -580,12 +588,35 @@ function IcsSettingsCard() {
         </div>
 
         <div className="space-y-2">
+          <Label htmlFor="ics-location" className="text-sm font-medium">Cottage Address</Label>
+          <Input
+            id="ics-location"
+            value={location}
+            onChange={e => setLocation(e.target.value)}
+            placeholder="40 Chemin Duncan Est, Barkmere, QC J0T 2V0, Canada"
+          />
+          <p className="text-xs text-muted-foreground">Shown as the event location in the calendar invite.</p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="ics-organizer" className="text-sm font-medium">Organizer Email</Label>
+          <Input
+            id="ics-organizer"
+            type="email"
+            value={organizerEmail}
+            onChange={e => setOrganizerEmail(e.target.value)}
+            placeholder="Bookings@40duncan.com"
+          />
+          <p className="text-xs text-muted-foreground">Shown as the event organizer and included in the invite description.</p>
+        </div>
+
+        <div className="space-y-2">
           <Label className="text-sm font-medium">Event Preview</Label>
           <div className="rounded-lg border border-border/40 bg-muted/20 font-mono text-xs p-4 space-y-1 leading-relaxed">
             <div><span className="text-muted-foreground">SUMMARY:</span> <span className="text-foreground">{previewSummary}</span></div>
             <div><span className="text-muted-foreground">DTSTART:</span> <span className="text-foreground">{previewCheckin}</span></div>
             <div><span className="text-muted-foreground">DTEND:</span> <span className="text-foreground">{previewCheckout}</span></div>
-            <div><span className="text-muted-foreground">LOCATION:</span> <span className="text-foreground">40 Chemin Duncan Est, Barkmere, QC J0T 2V0, Canada</span></div>
+            <div><span className="text-muted-foreground">LOCATION:</span> <span className="text-foreground">{previewLocation}</span></div>
             <div className="pt-1 border-t border-border/30">
               <span className="text-muted-foreground">DESCRIPTION:</span>
               <div className="pl-4 mt-1 space-y-0.5 text-foreground/80">
@@ -594,12 +625,14 @@ function IcsSettingsCard() {
                 <div>Check-out: [EndDate] at {checkoutTime}</div>
                 <div>Nights: [Nights]</div>
                 <div>[PriceDisplay]</div>
-                <div>Address: 40 Chemin Duncan Est, Barkmere, QC J0T 2V0, Canada</div>
+                <div>Address: {previewLocation}</div>
+                <div>Contact: {previewOrganizer}</div>
               </div>
             </div>
             <div className="pt-1 border-t border-border/30">
-              <span className="text-muted-foreground">URL:</span> <span className="text-foreground">https://your-app.com/booking/[token]</span>
+              <span className="text-muted-foreground">ORGANIZER:</span> <span className="text-foreground">{previewOrganizer}</span>
             </div>
+            <div><span className="text-muted-foreground">URL:</span> <span className="text-foreground/50 italic">auto-generated per booking</span></div>
           </div>
         </div>
 
