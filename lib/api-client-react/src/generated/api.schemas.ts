@@ -228,6 +228,11 @@ export interface RenterConfirmResult {
   renterConfirmed: boolean;
 }
 
+export interface RenterCancelResult {
+  ok: boolean;
+  status: string;
+}
+
 export interface PendingConfirmationsSummary {
   rentalIds: number[];
   urgentRentalIds: number[];

@@ -1,9 +1,20 @@
 import { useState } from "react";
 import { useParams, useLocation } from "wouter";
-import { useGetBookingByToken, getGetBookingByTokenQueryKey, useRenterConfirmBooking } from "@workspace/api-client-react";
+import { useGetBookingByToken, getGetBookingByTokenQueryKey, useRenterConfirmBooking, useCancelBookingByToken } from "@workspace/api-client-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Loader2, TreePine, CalendarDays, Moon, DollarSign, CheckCircle2, Clock, AlertCircle, XCircle, ArrowLeft, ExternalLink } from "lucide-react";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode; message: string }> = {
@@ -50,7 +61,9 @@ export default function BookingConfirmationPage() {
     },
   });
   const [renterConfirmedLocal, setRenterConfirmedLocal] = useState<boolean | null>(null);
+  const [cancelledLocal, setCancelledLocal] = useState(false);
   const renterConfirmMutation = useRenterConfirmBooking();
+  const cancelMutation = useCancelBookingByToken();
 
   if (isLoading) {
     return (
@@ -84,8 +97,10 @@ export default function BookingConfirmationPage() {
     );
   }
 
-  const statusCfg = STATUS_CONFIG[booking.status] ?? STATUS_CONFIG["pending_approval"];
+  const effectiveStatus = cancelledLocal ? "cancelled" : booking.status;
+  const statusCfg = STATUS_CONFIG[effectiveStatus] ?? STATUS_CONFIG["pending_approval"];
   const isPersonal = booking.bookingType === "personal";
+  const isCancellable = !cancelledLocal && (booking.status === "pending_approval" || booking.status === "submitted");
   const displayPrice = booking.agreedPrice != null ? booking.agreedPrice : booking.totalPrice;
   const isRenterConfirmed = renterConfirmedLocal !== null ? renterConfirmedLocal : booking.renterConfirmed;
   const gcalUrl = buildGoogleCalendarUrl(
@@ -118,7 +133,7 @@ export default function BookingConfirmationPage() {
       <main className="max-w-xl mx-auto px-4 py-10 space-y-6">
         {/* Status card */}
         <Card className="border-border/40 shadow-sm overflow-hidden">
-          <div className={`px-6 py-5 flex items-start gap-4 border-b border-border/30 ${booking.status === "confirmed" ? "bg-green-50/60" : booking.status === "cancelled" ? "bg-red-50/50" : "bg-amber-50/50"}`}>
+          <div className={`px-6 py-5 flex items-start gap-4 border-b border-border/30 ${effectiveStatus === "confirmed" ? "bg-green-50/60" : effectiveStatus === "cancelled" ? "bg-red-50/50" : "bg-amber-50/50"}`}>
             <div className="mt-0.5">{statusCfg.icon}</div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -246,6 +261,55 @@ export default function BookingConfirmationPage() {
               <p className="font-semibold text-green-700 text-sm">Booking Confirmed</p>
               <p className="text-xs text-muted-foreground">You have confirmed receipt of this booking. See you at the cottage!</p>
             </div>
+          </div>
+        )}
+
+        {/* Cancel booking */}
+        {isCancellable && (
+          <div className="rounded-xl border border-red-200 bg-red-50/40 p-5 flex flex-col items-center gap-3 text-center">
+            <XCircle className="w-7 h-7 text-red-400" />
+            <div>
+              <p className="font-semibold text-foreground text-sm">Need to cancel?</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                You can cancel this booking while it hasn't been confirmed yet.
+              </p>
+            </div>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700">
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Cancel Booking
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Cancel this booking?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will cancel your booking request. You'll receive a confirmation email. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep Booking</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                    onClick={() =>
+                      cancelMutation.mutate(
+                        { token: token! },
+                        { onSuccess: () => setCancelledLocal(true) },
+                      )
+                    }
+                  >
+                    {cancelMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : null}
+                    Yes, Cancel Booking
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            {cancelMutation.isError && (
+              <p className="text-xs text-red-500">Something went wrong. Please try again or contact the owner.</p>
+            )}
           </div>
         )}
 

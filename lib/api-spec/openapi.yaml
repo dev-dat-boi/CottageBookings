@@ -222,6 +222,29 @@ paths:
         "404":
           description: Not found
 
+  /rentals/confirm/{token}/cancel:
+    post:
+      operationId: cancelBookingByToken
+      tags: [rentals]
+      summary: Cancel a booking via confirmation token (no auth required, pending_approval or submitted only)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Booking cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RenterCancelResult"
+        "404":
+          description: Not found
+        "409":
+          description: Booking cannot be cancelled in its current state
+
   /rentals/renter-confirm:
     post:
       operationId: renterConfirmBooking
@@ -1217,6 +1240,15 @@ components:
         renterConfirmed:
           type: boolean
       required: [ok, renterConfirmed]
+
+    RenterCancelResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        status:
+          type: string
+      required: [ok, status]
 
     PendingConfirmationsSummary:
       type: object

@@ -41,6 +41,7 @@ export * from './pendingConfirmationsSummary';
 export * from './rentalEntry';
 export * from './rentalInput';
 export * from './rentalPatch';
+export * from './renterCancelResult';
 export * from './renterConfirmBody';
 export * from './renterConfirmResult';
 export * from './resetLinkResponse';

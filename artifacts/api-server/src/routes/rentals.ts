@@ -333,6 +333,29 @@ router.get("/rentals/confirm/:token", async (req, res) => {
   }
 });
 
+// Renter cancels their booking via token link — no auth required
+router.post("/rentals/confirm/:token/cancel", async (req, res) => {
+  const { token } = req.params;
+  try {
+    const rows = await db.select().from(rentalsTable).where(eq(rentalsTable.confirmationToken, token));
+    if (rows.length === 0) { res.status(404).json({ error: "Booking not found" }); return; }
+    const rental = rows[0];
+    if (rental.status !== "pending_approval" && rental.status !== "submitted") {
+      res.status(409).json({ error: "Booking cannot be cancelled in its current state" });
+      return;
+    }
+    await db.update(rentalsTable).set({ status: "cancelled" }).where(eq(rentalsTable.confirmationToken, token));
+    const updated = { ...rental, status: "cancelled" as const };
+    sendStatusEmails(updated, "cancelled").catch(err =>
+      req.log.error({ err, rentalId: rental.id }, "Failed to send renter_cancelled email"),
+    );
+    res.json({ ok: true, status: "cancelled" });
+  } catch (err) {
+    req.log.error({ err }, "Failed to cancel booking by token");
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // Renter confirms their booking via token link — no auth required
 router.post("/rentals/renter-confirm", async (req, res) => {
   const { token } = req.body;

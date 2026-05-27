@@ -52,6 +52,7 @@ import type {
   RentalEntry,
   RentalInput,
   RentalPatch,
+  RenterCancelResult,
   RenterConfirmBody,
   RenterConfirmResult,
   ResetLinkResponse,
@@ -890,6 +891,76 @@ export function useGetBookingByToken<TData = Awaited<ReturnType<typeof getBookin
 
 
 
+
+export const getCancelBookingByTokenUrl = (token: string,) => {
+
+
+
+
+  return `/api/rentals/confirm/${token}/cancel`
+}
+
+/**
+ * @summary Cancel a booking via confirmation token (no auth required, pending_approval or submitted only)
+ */
+export const cancelBookingByToken = async (token: string, options?: RequestInit): Promise<RenterCancelResult> => {
+
+  return customFetch<RenterCancelResult>(getCancelBookingByTokenUrl(token),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getCancelBookingByTokenMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelBookingByToken>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelBookingByToken>>, TError,{token: string}, TContext> => {
+
+const mutationKey = ['cancelBookingByToken'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelBookingByToken>>, {token: string}> = (props) => {
+          const {token} = props ?? {};
+
+          return  cancelBookingByToken(token,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelBookingByTokenMutationResult = NonNullable<Awaited<ReturnType<typeof cancelBookingByToken>>>
+
+    export type CancelBookingByTokenMutationError = ErrorType<void>
+
+    /**
+ * @summary Cancel a booking via confirmation token (no auth required, pending_approval or submitted only)
+ */
+export const useCancelBookingByToken = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelBookingByToken>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cancelBookingByToken>>,
+        TError,
+        {token: string},
+        TContext
+      > => {
+      return useMutation(getCancelBookingByTokenMutationOptions(options));
+    }
 
 export const getRenterConfirmBookingUrl = () => {
 

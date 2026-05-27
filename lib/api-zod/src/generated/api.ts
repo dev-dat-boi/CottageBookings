@@ -365,6 +365,19 @@ export const GetBookingByTokenResponse = zod.object({
 
 
 /**
+ * @summary Cancel a booking via confirmation token (no auth required, pending_approval or submitted only)
+ */
+export const CancelBookingByTokenParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const CancelBookingByTokenResponse = zod.object({
+  "ok": zod.boolean(),
+  "status": zod.string()
+})
+
+
+/**
  * @summary Renter confirms their booking via token link (no auth required)
  */
 export const RenterConfirmBookingBody = zod.object({
